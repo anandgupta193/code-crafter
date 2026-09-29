@@ -1,0 +1,24 @@
+# Dependencies & build output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Secrets — never commit (see docs/12-security.md)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Local runtime data
+.data/
+*.log
+workspaces/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
