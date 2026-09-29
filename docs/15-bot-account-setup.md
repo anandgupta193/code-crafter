@@ -25,18 +25,20 @@ Give code-crafter its own GitHub identity. Its commits and PRs are clearly "the 
 Accept the invite from the bot account (check the bot's email or github.com/notifications).
 
 ### 3 · Create the bot's token (from the *bot* account)
-Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token:
+Use a **classic** token. Fine-grained tokens can only reach repos owned by the bot or by its organizations, not repos on another user's account where it's a collaborator.
+
+github.com/settings/tokens → Generate new token (classic):
 
 | Field | Value |
 |---|---|
-| Name | `code-crafter-local` |
-| Expiration | 90 days (put a calendar reminder to rotate it) |
-| Resource owner | **anandgupta193** (the repo owner, not the bot). If it isn't listed, use a **classic** token with the `repo` scope instead, since fine-grained tokens for collaborator repos on personal accounts may not be offered |
-| Repository access | Only select repositories → `expense-manager` |
-| Permissions | Contents: **Read & write** · Pull requests: **Read & write** · Issues: **Read & write** · Actions: **Read** · Commit statuses: **Read** · Metadata: Read (auto) |
-| **Not** granted | Workflows, Administration, Secrets |
+| Note | `code-crafter-local` |
+| Expiration | 90 days (rotate with a reminder) |
+| Scopes | **`public_repo` only**. expense-manager is public; use `repo` only if a private target is added |
+| **Not** granted | `workflow` (GitHub then rejects pushes touching `.github/workflows/**`, which enforces "never touch CI"), `admin:*`, `delete_repo` |
 
-Copy the token **once** into `~/Documents/code-crafter/.env` (gitignored) as `GITHUB_TOKEN=...`. Don't paste it into chat, Slack or any file that's committed.
+Effective reach = repos where the bot is a collaborator (only expense-manager).
+
+Store it only in `~/Documents/code-crafter/.env` (gitignored, `chmod 600`) as `GITHUB_TOKEN=...`. Never paste it into chat, Slack or a committed file.
 
 ### 4 · Protect `main` (from *your* account)
 `expense-manager` → Settings → Rules → Rulesets → New branch ruleset:
@@ -49,8 +51,8 @@ The bot has only Write access, isn't on the bypass list, and can't approve its o
 
 ### 5 · Commit identity used inside the container
 ```
-git config user.name  "code-crafter-bot"
-git config user.email "<bot-id>+code-crafter-bot@users.noreply.github.com"
+git config user.name  "codecrafterbot"
+git config user.email "335623999+codecrafterbot@users.noreply.github.com"
 ```
 Find the no-reply email under the bot's Settings → Emails. This way commits are attributed to the bot's profile.
 
