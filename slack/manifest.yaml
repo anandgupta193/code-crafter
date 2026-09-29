@@ -1,0 +1,32 @@
+# Slack app manifest for code-crafter.
+# Create the app at https://api.slack.com/apps → Create New App → From a manifest.
+# See docs/02-trigger-intake.md and docs/01-accounts-and-infra.md.
+display_information:
+  name: Code Crafter
+  description: Turns Jira tickets into GitHub pull requests.
+  background_color: "#1f2937"
+features:
+  bot_user:
+    display_name: code-crafter
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - channels:history   # read trigger messages in public channels
+      - channels:read      # resolve channel info
+      - groups:history     # same, if the trigger channel is private
+      - chat:write         # post thread updates
+      - reactions:write    # ✅ on merge
+      - app_mentions:read  # future: @code-crafter commands
+      - users:read         # resolve who triggered (allow-list)
+settings:
+  event_subscriptions:
+    bot_events:
+      - message.channels
+      - message.groups
+      - app_mention
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false
