@@ -3,6 +3,11 @@
 ## Purpose
 Give code-crafter its own GitHub identity. Its commits and PRs are clearly "the bot", its access is limited to the repos it's allowed to touch, and it can never approve or merge its own work.
 
+## Actual bot
+- Username: **`codecrafterbot`** (user id `335623999`)
+- Commit identity: `codecrafterbot <335623999+codecrafterbot@users.noreply.github.com>`
+- There is no "mark as bot" setting for user accounts. The `[bot]` badge only exists for GitHub Apps. A machine user is a normal account; label it through its profile name and bio.
+
 ## Steps (you do these; they involve signing up and handling credentials)
 
 ### 1 · Create the account
@@ -34,12 +39,13 @@ Settings → Developer settings → Personal access tokens → **Fine-grained to
 Copy the token **once** into `~/Documents/code-crafter/.env` (gitignored) as `GITHUB_TOKEN=...`. Don't paste it into chat, Slack or any file that's committed.
 
 ### 4 · Protect `main` (from *your* account)
-`expense-manager` → Settings → Branches (or Rules → Rulesets) → add a rule for `main`:
-- Require a pull request before merging, with **1 approval**
-- Require status checks: **CI / check**
-- Don't allow bypassing (optional for you as the owner)
+`expense-manager` → Settings → Rules → Rulesets → New branch ruleset:
+- Name `protect-main`, Enforcement **Active**
+- Bypass list: **Repository admin**. You're the only maintainer, and GitHub won't let you approve your own PRs, so you need this to merge your own work.
+- Target branches: **Include default branch**
+- Rules: Restrict deletions · Block force pushes · Require a pull request (1 approval, dismiss stale approvals) · Require status checks → `check` (from GitHub Actions)
 
-Because the bot has only Write access and needs an approval, it can open PRs but never merge them alone.
+The bot has only Write access, isn't on the bypass list, and can't approve its own PRs, so it can open PRs but never merge them. You approve and merge them.
 
 ### 5 · Commit identity used inside the container
 ```
