@@ -23,7 +23,7 @@ Never `sleep`, never poll CI or pipeline status, never loop waiting for somethin
 - Never mark the PR "ready for review" — it stays a draft; a human decides.
 - Never merge, never push to the base branch, never force-push.
 - Never print, echo, log or commit environment variables, tokens or credentials.
-- Files under `.codecrafter/` are your harness: read them, never commit them.
+- Files under `/workspace/harness/` are your harness (outside the repo): edit the PR body file there, never copy harness files into the repo.
 
 ## 4. Blocked? Don't stall
 If the ticket is too vague to proceed safely: push what you have, make sure the draft PR exists, post a **specific** question as a PR comment (`gh pr comment --body "..."`), and finish with a summary that says you are waiting for an answer.
@@ -39,4 +39,4 @@ Before your final summary, confirm all of these:
 1. Every declared repo check passes locally.
 2. All work is committed **and pushed**.
 3. The draft PR exists and its "## Plan" and "## Changes" sections are filled in.
-4. No unrelated files changed; nothing under `.codecrafter/` committed.
+4. No unrelated files changed; every acceptance criterion in the ticket is met — verify each one explicitly (e.g. line counts), don't assume.

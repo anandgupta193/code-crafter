@@ -50,7 +50,7 @@ code-crafter/
 | D12 | PRs **stay draft**; the orchestrator forces draft. The agent posts a "✅ done" PR comment (and Slack) once local checks pass; the human flips it to ready | 2026-09-30 |
 | D13 | On a usage limit: **pause** (WIP checkpoint, post the reset time, exit). No model downgrade; `fallback: []` | 2026-09-30 |
 | D14 | Agent commits always run hooks; **only the orchestrator's emergency WIP commit may use `--no-verify`**, labelled `WIP(code-crafter): emergency checkpoint [skip-hooks]`; the final HEAD must pass local checks | 2026-09-30 |
-| D15 | Load the target repo's own `CLAUDE.md` / `.claude/` as-is; the harness lives in `.codecrafter/harness/` + `--append-system-prompt` | 2026-09-30 |
+| D15 | Load the target repo's own `CLAUDE.md` / `.claude/` as-is; the harness lives in `/workspace/harness/` (outside the repo) + `--append-system-prompt` | 2026-09-30 |
 | D16 | Timers: soft timeout **10 min**, **3** continuations, **idle TTL 40 min** (reset by events/activity), **hard cap 90 min**, **2 min** SIGTERM grace for checkpointing | 2026-09-30 |
 | D17 | Security hardening deferred: the AI gets the **full env, single user, open network** in Phase 1. Revisit before anyone else can create tickets or comments that reach the agent (see [12](12-security.md)) | 2026-09-30 |
 | D18 | Per-ticket volume `codecrafter-home-<key>` keeps the Claude session; the resume prompt always includes branch/PR/comment context as a fallback; volume deleted on merge/close, reaped after 7 days idle | 2026-09-30 |

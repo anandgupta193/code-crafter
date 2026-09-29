@@ -26,7 +26,7 @@ NAME="code-crafter-$LOWER"
 VOLUME="codecrafter-home-$LOWER"
 
 # Concurrency cap (D3), not counting this ticket's own container.
-RUNNING="$(docker ps --filter label=codecrafter.key --format '{{.Names}}' | grep -vx "$NAME" | wc -l | tr -d ' ')"
+RUNNING="$(docker ps --filter label=codecrafter.key --format '{{.Names}}' | { grep -vx "$NAME" || true; } | wc -l | tr -d ' ')"
 if (( RUNNING >= MAX_CONCURRENT )); then
   echo "✗ $RUNNING tickets already running (max $MAX_CONCURRENT): $(docker ps --filter label=codecrafter.key --format '{{.Names}}' | tr '\n' ' ')"
   exit 1

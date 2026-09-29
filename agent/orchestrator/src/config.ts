@@ -57,7 +57,7 @@ export function loadTicketContext(): TicketContext {
     branchIsNew: process.env.BRANCH_IS_NEW === 'true',
     repoDir,
     stateDir,
-    harnessDir: path.join(repoDir, '.codecrafter', 'harness'),
+    harnessDir: process.env.HARNESS_DIR ?? '/workspace/harness',
     slackThreadTs: process.env.SLACK_THREAD_TS || undefined,
   };
 }

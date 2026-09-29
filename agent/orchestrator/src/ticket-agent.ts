@@ -52,15 +52,12 @@ export class TicketAgent {
   private lastCheckpointNotice = 0;
   private pendingPrCheck = false;
   private pendingPush = false;
+  private lastUsagePct?: number;
 
   private d: Deps;
 
   constructor(deps: Deps) {
     this.d = deps;
-  }
-
-  private get bodyFileRel(): string {
-    return path.relative(this.d.ctx.repoDir, path.join(this.d.ctx.harnessDir, 'pr-body.md'));
   }
 
   private get bodyFileAbs(): string {
@@ -104,7 +101,7 @@ export class TicketAgent {
         branch: ctx.branch,
         branchIsNew: ctx.branchIsNew,
         planFirst: this.planFirst,
-        prBodyFile: this.bodyFileRel,
+        prBodyFile: this.bodyFileAbs,
         attachments,
         commands: this.d.repoConfig.commands,
         existingWork: ctx.branchIsNew ? undefined : await this.existingWork(),
@@ -240,9 +237,15 @@ export class TicketAgent {
           await this.notifyCheckpoint();
         }
         break;
-      case 'usage':
-        if (e.utilization !== undefined) log.info(`usage: ${Math.round(e.utilization * 100)}% of ${e.window} window`);
+      case 'usage': {
+        // One of these arrives per API call — only log meaningful changes.
+        const pct = e.utilization === undefined ? undefined : Math.round(e.utilization * 100);
+        if (pct !== undefined && (this.lastUsagePct === undefined || Math.abs(pct - this.lastUsagePct) >= 5)) {
+          this.lastUsagePct = pct;
+          log.info(`usage: ${pct}% of ${e.window} window`);
+        }
         break;
+      }
       case 'usage_limit':
         log.warn(`usage limit hit (resets ${e.resetsAt ? fmtTime(e.resetsAt) : 'unknown'})`);
         break;

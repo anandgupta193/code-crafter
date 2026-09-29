@@ -92,7 +92,8 @@ ${p.existingWork.prUrl ? `Pull request: ${p.existingWork.prUrl}\n\n${p.existingW
   }
 
   sections.push(`## Workflow Context
-1. If no PR exists yet: write your plan into the "## Plan" section of \`${p.prBodyFile}\`, make a first commit, push, and open the draft PR:
+1. If no PR exists yet: write your plan into the "## Plan" section of \`${p.prBodyFile}\` (it lives outside the repo on purpose — never copy it into the repo), then open the draft PR with an empty starting commit:
+   \`git commit --allow-empty -m "${issue.key}: start work" && git push -u origin ${p.branch}\`
    \`gh pr create --draft --base ${p.baseBranch} --title "${prTitle(issue)}" --body-file ${p.prBodyFile}\`
    Keep the HTML comments at the bottom of that file untouched.
 2. ${

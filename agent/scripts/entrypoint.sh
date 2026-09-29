@@ -35,11 +35,11 @@ else
   log "created branch $BRANCH from $BASE"
 fi
 
-# 4. Harness: our rules live beside the repo's own CLAUDE.md/.claude (never overwrite those),
-#    excluded locally so the agent cannot commit them.
-mkdir -p .codecrafter/harness
-cp /opt/codecrafter/rules/*.md .codecrafter/harness/
-echo ".codecrafter/" >> .git/info/exclude
+# 4. Harness lives OUTSIDE the repo: the agent can't commit it and repo tools (prettier, eslint, tsc) never see it.
+#    The repo's own CLAUDE.md/.claude are left untouched.
+HARNESS_DIR="${HARNESS_DIR:-/workspace/harness}"
+rm -rf "$HARNESS_DIR" && mkdir -p "$HARNESS_DIR"
+cp /opt/codecrafter/rules/*.md "$HARNESS_DIR/"
 
-export BRANCH_NAME="$BRANCH" BRANCH_IS_NEW REPO_DIR
+export BRANCH_NAME="$BRANCH" BRANCH_IS_NEW REPO_DIR HARNESS_DIR
 exec node /opt/codecrafter/orchestrator/src/main.ts

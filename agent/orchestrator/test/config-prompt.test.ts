@@ -79,7 +79,7 @@ describe('buildInitialPrompt', () => {
     baseBranch: 'main',
     branch: 'CODE-CRAFTER-SCRUM-2',
     planFirst: false,
-    prBodyFile: '.codecrafter/harness/pr-body.md',
+    prBodyFile: '/workspace/harness/pr-body.md',
     attachments: [],
     commands: { lint: 'npm run lint' },
   };

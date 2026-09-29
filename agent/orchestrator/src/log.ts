@@ -24,7 +24,8 @@ export function redact(text: string): string {
 }
 
 function stamp(): string {
-  return new Date().toISOString().slice(11, 19);
+  // Local time (TZ is passed into the container) so it matches entrypoint.sh output.
+  return new Date().toLocaleTimeString('en-GB', { hour12: false });
 }
 
 function write(icon: string, msg: string): void {
