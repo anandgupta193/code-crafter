@@ -15,6 +15,7 @@ oauth_config:
       - channels:history   # read trigger messages in public channels
       - channels:read      # resolve channel info
       - groups:history     # same, if the trigger channel is private
+      - groups:read        # resolve private channel info
       - chat:write         # post thread updates
       - reactions:write    # ✅ on merge
       - app_mentions:read  # future: @code-crafter commands
