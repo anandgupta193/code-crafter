@@ -33,13 +33,21 @@ code-crafter/
   examples/             codecrafter.yaml templates per stack
 ```
 
-## Consolidated open questions
-1. **Sandbox repo:** public (free CI minutes, free CodeRabbit) or private?
-2. **Jira:** a new free site or an existing company one?
-3. **Concurrency:** max parallel tickets (proposal: 2)?
-4. **TTL:** keep 40 min?
-5. **Session volume:** persist the agent home dir per ticket (proposal: yes)?
-6. **Parser location:** JS in n8n Code nodes, loaded from `n8n/parsers/` (proposal: yes)?
-7. **Language:** TypeScript for the control plane and orchestrator (proposal: yes, to match the original)?
-8. **Who can trigger:** a Slack user allow-list?
-9. **Environment field:** ignore for the MVP?
+## Decisions log
+| # | Decision | Date |
+|---|---|---|
+| D1 | Target repo: `anandgupta193/expense-manager` (public), see [14](14-target-repo-expense-manager.md) | 2026-09-29 |
+| D2 | Jira site: `https://code-crafter.atlassian.net` | 2026-09-29 |
+| D3 | Max 2 concurrent tickets | 2026-09-29 |
+| D4 | Container TTL 40 min | 2026-09-29 |
+| D5 | TypeScript for the control plane and orchestrator | 2026-09-29 |
+| D6 | GitHub + Jira + Slack; Claude Code behind `AgentRunner`; local Docker; self-hosted n8n; smee.io | 2026-09-29 |
+
+## Open questions
+1. **Jira project key** on code-crafter.atlassian.net?
+2. **Bot identity:** a separate GitHub bot account (recommended) or your own account + PAT?
+3. **Pre-flight repo changes** ([14](14-target-repo-expense-manager.md)): fix/remove the broken labeler workflow, add `ci.yml` and `codecrafter.yaml`. Should code-crafter's bootstrap PR do this, or you by hand?
+4. **Session volume:** persist the agent home dir per ticket (proposal: yes)?
+5. **Parser location:** JS in n8n Code nodes, loaded from `n8n/parsers/` (proposal: yes)?
+6. **Who can trigger:** a Slack user allow-list (proposal: just you, for now)?
+7. **Environment field:** ignore for the MVP (proposal: yes)?

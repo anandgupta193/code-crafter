@@ -50,8 +50,8 @@ POST http://control-plane:3000/spawn
 **Service registry (MVP).** A `config/services.yaml` in this repo. In Phase 2 it's replaced by the Neo4j graph.
 ```yaml
 services:
-  demo-app:
-    repo: https://github.com/acme/demo-app.git
+  expense-manager:
+    repo: https://github.com/anandgupta193/expense-manager.git
     default_base_branch: main
 ```
 

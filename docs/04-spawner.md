@@ -47,6 +47,6 @@ Stateless apart from the Redis lock and Docker labels. The container itself is d
 ## Security note
 Mounting `docker.sock` gives the control plane root-equivalent access on the host. That's acceptable on a laptop prototype; it goes away with K8s (see [12](12-security.md)). Agent containers **never** get the socket.
 
-## Open questions
-- Max concurrent tickets? (Proposal: 2, because of Claude Pro limits and laptop RAM.)
-- Is 40 min the right TTL for the MVP?
+## Decided
+- **Max 2 concurrent tickets.** `/spawn` counts running `codecrafter.key` containers; a third gets `429` and a Slack reply "queue full, retry later" (a real queue comes later).
+- **TTL 40 min.**

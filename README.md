@@ -31,4 +31,5 @@ The design is based on QuillBot's internal **Code-Crafter** (see [docs/00-overvi
 | 10 | [Context graph](docs/10-context-graph.md) | *(Phase 2)* Neo4j architecture memory |
 | 11 | [Planner](docs/11-planner.md) | *(Phase 3)* Multi-repo planning |
 | 12 | [Security](docs/12-security.md) | Secrets, sandboxing, token scopes |
-| 13 | [Roadmap](docs/13-roadmap.md) | Phases and open questions |
+| 13 | [Roadmap](docs/13-roadmap.md) | Phases, decisions, open questions |
+| 14 | [Target: expense-manager](docs/14-target-repo-expense-manager.md) | First target repo and its pre-flight changes |

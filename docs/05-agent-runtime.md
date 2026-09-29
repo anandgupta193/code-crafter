@@ -20,7 +20,7 @@ Base: `debian:bookworm-slim` (or `node:22-bookworm`), plus:
    if origin has CODE-CRAFTER-<KEY>: checkout + pull  → BRANCH_IS_NEW=false
    else: checkout -b CODE-CRAFTER-<KEY> from origin/<BASE> → BRANCH_IS_NEW=true
    ```
-4. **Drop the harness.** Copy the agent rules and config into the repo (for Claude Code: `.claude/` and a `CODECRAFTER.md` referenced from the prompt), and add those paths to **`.git/info/exclude`** so the agent can't commit its own harness. *Improvement over the original:* it appended to the tracked `.gitignore`, which shows up in diffs; `.git/info/exclude` is local-only.
+4. **Drop the harness.** Copy the agent rules into `.codecrafter/harness/` (never into the repo's own `CLAUDE.md` / `.claude/`, which target repos may already have; see [14](14-target-repo-expense-manager.md)), and add those paths to **`.git/info/exclude`** so the agent can't commit its own harness. *Improvement over the original:* it appended to the tracked `.gitignore`, which shows up in diffs; `.git/info/exclude` is local-only.
 5. **MCP wiring** *(Phase 2)*: write `.mcp.json` with the Neo4j MCP server.
 6. **Toolchain.** Parse `codecrafter.yaml` and install what it asks for (`codecrafter-utils.sh`), then run its setup command.
 7. `exec node /opt/codecrafter/orchestrator/server.js`. The server auto-starts the workflow ~2s after it starts listening (see [07](07-orchestrator.md)).
