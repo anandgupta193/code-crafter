@@ -1,0 +1,6 @@
+# Services code-crafter may work on (docs/02-trigger-intake.md).
+# Keep this exact shape: scripts/run-ticket.sh reads it with awk.
+services:
+  expense-manager:
+    repo: https://github.com/anandgupta193/expense-manager.git
+    default_base_branch: main

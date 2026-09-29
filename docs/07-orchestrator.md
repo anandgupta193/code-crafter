@@ -58,6 +58,8 @@ STALLED or continuations exhausted:
    comment on the PR + Slack thread: "needs a human: <reason>"
 ```
 
+> **As built (Phase 1a):** headless `claude -p` can't take new input mid-run, so a soft timeout **does not interrupt a progressing agent**. It only extends (up to 3 times); the rules already make the agent commit at checkpoints. A non-progressing agent is interrupted (STALLED); running out of extensions interrupts it too (EXHAUSTED). Both end with an emergency checkpoint and a "needs a human" post. After a clean finish the orchestrator runs the repo checks itself, giving the agent up to 2 fix rounds.
+
 ## 4 · PR guardrails (don't trust the model)
 The model opens the PR itself (`gh pr create …` per the rules). Afterwards, the orchestrator:
 - **Pre-computes the PR body** and gives it to the model, including `<!-- SLACK_THREAD_TS: 1727… -->`. After the run it checks the marker is present and adds it back with `gh pr edit` if missing.
