@@ -41,13 +41,12 @@ code-crafter/
 | D3 | Max 2 concurrent tickets | 2026-09-29 |
 | D4 | Container TTL 40 min | 2026-09-29 |
 | D5 | TypeScript for the control plane and orchestrator | 2026-09-29 |
+| D7 | Jira project key `SCRUM`; first test ticket `SCRUM-5` | 2026-09-29 |
+| D8 | Separate GitHub bot account (see [15](15-bot-account-setup.md)) | 2026-09-29 |
 | D6 | GitHub + Jira + Slack; Claude Code behind `AgentRunner`; local Docker; self-hosted n8n; smee.io | 2026-09-29 |
 
 ## Open questions
-1. **Jira project key** on code-crafter.atlassian.net?
-2. **Bot identity:** a separate GitHub bot account (recommended) or your own account + PAT?
-3. **Pre-flight repo changes** ([14](14-target-repo-expense-manager.md)): fix/remove the broken labeler workflow, add `ci.yml` and `codecrafter.yaml`. Should code-crafter's bootstrap PR do this, or you by hand?
-4. **Session volume:** persist the agent home dir per ticket (proposal: yes)?
-5. **Parser location:** JS in n8n Code nodes, loaded from `n8n/parsers/` (proposal: yes)?
-6. **Who can trigger:** a Slack user allow-list (proposal: just you, for now)?
-7. **Environment field:** ignore for the MVP (proposal: yes)?
+1. **Session volume:** persist the agent home dir per ticket (proposal: yes)?
+2. **Parser location:** JS in n8n Code nodes, loaded from `n8n/parsers/` (proposal: yes)?
+3. **Who can trigger:** a Slack user allow-list (proposal: just you, for now)?
+4. **Environment field:** ignore for the MVP (proposal: yes)?

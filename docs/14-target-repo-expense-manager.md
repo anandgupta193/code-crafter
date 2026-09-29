@@ -61,13 +61,16 @@ jobs:
 ```
 It's public, so Actions minutes are free.
 
-## Pre-flight changes to the repo (human, before Phase 1c)
-1. Add `.github/labeler.yml`, or delete `label.yml`, so PRs aren't born red.
-2. Add `ci.yml` above (and confirm `npm run build` works with dummy env).
-3. Add `codecrafter.yaml`.
-4. Branch protection on `main`: require a PR, the CI check, and 1 approval.
-5. Add the bot account as a collaborator (write access).
-6. Add the webhook → smee URL (see [01](01-accounts-and-infra.md)).
+## Pre-flight changes to the repo — status
+| # | Change | Status |
+|---|---|---|
+| 1 | `.github/labeler.yml` | ✅ merged (PR #2) |
+| 2 | `ci.yml`: lint, format, typecheck, build | 🟡 PR #3 open, CI green |
+| 3 | `codecrafter.yaml` | 🟡 pushed on branch `chore/codecrafter-config`, PR to open |
+| 4 | Branch protection on `main` (PR + `CI / check` + 1 approval) | ⬜ you, see [15](15-bot-account-setup.md) |
+| 5 | Bot account as a Write collaborator | ⬜ you, see [15](15-bot-account-setup.md) |
+| 6 | Webhook → smee URL | ⬜ Phase 0 |
 
 ## Jira
-Site: `https://code-crafter.atlassian.net` → `JIRA_BASE_URL`. Project key: **TBD**.
+Site: `https://code-crafter.atlassian.net` → `JIRA_BASE_URL`. Project key: **`SCRUM`** (first test ticket: `SCRUM-5`).
+Branch for that ticket: `CODE-CRAFTER-SCRUM-5` → container `code-crafter-scrum-5`.

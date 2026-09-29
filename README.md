@@ -33,3 +33,4 @@ The design is based on QuillBot's internal **Code-Crafter** (see [docs/00-overvi
 | 12 | [Security](docs/12-security.md) | Secrets, sandboxing, token scopes |
 | 13 | [Roadmap](docs/13-roadmap.md) | Phases, decisions, open questions |
 | 14 | [Target: expense-manager](docs/14-target-repo-expense-manager.md) | First target repo and its pre-flight changes |
+| 15 | [Bot account setup](docs/15-bot-account-setup.md) | Creating the GitHub bot, its token, branch protection |
