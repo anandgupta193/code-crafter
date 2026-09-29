@@ -36,3 +36,6 @@ An autonomous agent with push rights and a model token is a juicy target. This d
 
 ## Control plane
 Mounting `docker.sock` is root-equivalent on the host. Acceptable on a single-user laptop; it goes away with the K8s spawner.
+
+## Accepted risk for Phase 1 (D17)
+The hardening above is **deferred**. In Phase 1 the AI process gets the full container env (GitHub, Jira, Claude, Slack tokens), runs as the same user as the orchestrator, and has open network access. This is acceptable only while **the owner is the only person who can create tickets, comment on the PR, or trigger runs**. Revisit (allow-listed env, separate Linux user, secret scan of outgoing text) before that changes.

@@ -3,8 +3,8 @@
 ## Phases
 | Phase | Goal | Deliverables | Done when |
 |---|---|---|---|
-| **0 · Setup** | Accounts and local infra | Checklist in [01](01-accounts-and-infra.md); `docker-compose.yml` (n8n, redis, smee, control plane); sandbox repo with `codecrafter.yaml` + CI | `docker compose up` works; a GitHub webhook shows up in n8n |
-| **1a · Agent runs locally** | Prove the agent core without the bus | Agent image, `entrypoint.sh`, orchestrator with `ClaudeCodeRunner`, prompt from Jira; start it manually with `docker run` | Given `CC-1`, a PR is opened on the sandbox repo |
+| **0 · Plumbing** *(after 1a)* | Accounts and local infra | Checklist in [01](01-accounts-and-infra.md); `docker-compose.yml` (n8n, redis, smee, control plane); sandbox repo with `codecrafter.yaml` + CI | `docker compose up` works; a GitHub webhook shows up in n8n |
+| **1a · Agent runs locally** *(first)* | Prove the agent core without the bus | Agent image, `entrypoint.sh`, orchestrator with `ClaudeCodeRunner`, prompt from Jira; `scripts/run-ticket.sh` | The Phase 1a checklist below passes on `SCRUM-2` |
 | **1b · Spawn from Slack** | Intake | slack-bridge, n8n `slack-parser`, control plane `/spawn` + dedupe + reaper | A Slack message produces a PR, and the thread gets updates |
 | **1c · Feedback loop** | Events | n8n `github-router` + comment/pipeline/merge parsers, `/command` queue, resume path | A review comment is fixed; a CI failure is fixed; a merge moves Jira to Done and adds ✅ |
 | **1d · Hardening** | Robustness | Supervision loop, fallback chain, PR guardrails, pause/stop, gitleaks | A killed container resumes cleanly |
@@ -39,14 +39,39 @@ code-crafter/
 | D1 | Target repo: `anandgupta193/expense-manager` (public), see [14](14-target-repo-expense-manager.md) | 2026-09-29 |
 | D2 | Jira site: `https://code-crafter.atlassian.net` | 2026-09-29 |
 | D3 | Max 2 concurrent tickets | 2026-09-29 |
-| D4 | Container TTL 40 min | 2026-09-29 |
+| D4 | ~~Container TTL 40 min~~ → superseded by D16 | 2026-09-29 |
 | D5 | TypeScript for the control plane and orchestrator | 2026-09-29 |
 | D6 | GitHub + Jira + Slack; Claude Code behind `AgentRunner`; local Docker; self-hosted n8n; smee.io | 2026-09-29 |
-| D7 | Jira project key `SCRUM`; first test ticket `SCRUM-5` | 2026-09-29 |
+| D7 | Jira project key `SCRUM`; ~~first test ticket SCRUM-5~~ → D10 | 2026-09-29 |
 | D8 | Separate GitHub bot account (see [15](15-bot-account-setup.md)) | 2026-09-29 |
+| D9 | Build order: **Phase 1a (agent) before Phase 0 (plumbing)** | 2026-09-30 |
+| D10 | First ticket **SCRUM-2** "Make agent code modular" (pure refactor, AC in ticket). SCRUM-5 is already implemented (`set_budget` exists) | 2026-09-30 |
+| D11 | Jira status is **forward-only**: To Do→In Progress on start; In Review when a human marks the PR ready; Done on merge; plus one Jira comment with the PR link | 2026-09-30 |
+| D12 | PRs **stay draft**; the orchestrator forces draft. The agent posts a "✅ done" PR comment (and Slack) once local checks pass; the human flips it to ready | 2026-09-30 |
+| D13 | On a usage limit: **pause** (WIP checkpoint, post the reset time, exit). No model downgrade; `fallback: []` | 2026-09-30 |
+| D14 | Agent commits always run hooks; **only the orchestrator's emergency WIP commit may use `--no-verify`**, labelled `WIP(code-crafter): emergency checkpoint [skip-hooks]`; the final HEAD must pass local checks | 2026-09-30 |
+| D15 | Load the target repo's own `CLAUDE.md` / `.claude/` as-is; the harness lives in `.codecrafter/harness/` + `--append-system-prompt` | 2026-09-30 |
+| D16 | Timers: soft timeout **10 min**, **3** continuations, **idle TTL 40 min** (reset by events/activity), **hard cap 90 min**, **2 min** SIGTERM grace for checkpointing | 2026-09-30 |
+| D17 | Security hardening deferred: the AI gets the **full env, single user, open network** in Phase 1. Revisit before anyone else can create tickets or comments that reach the agent (see [12](12-security.md)) | 2026-09-30 |
+| D18 | Per-ticket volume `codecrafter-home-<key>` keeps the Claude session; the resume prompt always includes branch/PR/comment context as a fallback; volume deleted on merge/close, reaped after 7 days idle | 2026-09-30 |
+| D19 | **Plan and continue**: the draft PR opens early with a Plan section. Jira label `plan-first` → wait for `/codecrafter approve` | 2026-09-30 |
+| D20 | Visibility: Slack thread = milestones only; PR comments = plan/questions/done/review replies; `docker logs` = readable progress; raw transcript on the volume; Jira = status + PR link only | 2026-09-30 |
+| D21 | "No behaviour change" is verified by **human review** for now (no tests in the repo — the biggest trust gap; revisit with a Vitest ticket) | 2026-09-30 |
+| D22 | n8n: **git is the source of truth** (`n8n/workflows/*.json`, tested `n8n/parsers/*.js`); reuse the existing `n8n_data` volume in compose | 2026-09-30 |
+| D23 | Default model **haiku** (pipeline testing). Jira label `model:sonnet` / `model:opus` overrides it. Pro token verified for sonnet-5-5 and opus-5-5 | 2026-09-30 |
+
+## Phase 1a acceptance checklist (agreed 2026-09-30)
+1. `./scripts/run-ticket.sh SCRUM-2` builds the agent image (arm64) and starts `code-crafter-scrum-2`.
+2. Jira SCRUM-2 is only moved forward (already In Progress → no change); a comment with the PR link is added.
+3. Slack thread: 🚀 started → 📋 plan → 💾 checkpoints → ✅ done (or ⏸ / ❓).
+4. Branch `CODE-CRAFTER-SCRUM-2` is pushed by **codecrafterbot**; commits pass the husky hook.
+5. A draft PR `SCRUM-2: …` with a Plan section and the `SLACK_THREAD_TS` marker.
+6. Lint, format, typecheck and build pass locally before ✅ done; GitHub CI is green.
+7. Kill test: `docker kill` mid-work → re-run → resumes (`BRANCH_IS_NEW=false`, same session).
+8. The idle timer shuts the container down by itself after it finishes.
+9. No secrets in commits, PR text, Slack or logs.
+
+Out of scope for 1a: Slack trigger, webhooks, review-comment handling, auto-resume scheduler, Cursor.
 
 ## Open questions
-1. **Session volume:** persist the agent home dir per ticket (proposal: yes)?
-2. **Parser location:** JS in n8n Code nodes, loaded from `n8n/parsers/` (proposal: yes)?
-3. **Who can trigger:** a Slack user allow-list (proposal: just you, for now)?
-4. **Environment field:** ignore for the MVP (proposal: yes)?
+1. **Environment field** in the Slack trigger: ignore for the MVP (proposal: yes).
