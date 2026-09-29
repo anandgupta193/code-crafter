@@ -65,10 +65,10 @@ It's public, so Actions minutes are free.
 | # | Change | Status |
 |---|---|---|
 | 1 | `.github/labeler.yml` | ✅ merged (PR #2) |
-| 2 | `ci.yml`: lint, format, typecheck, build | 🟡 PR #3 open, CI green |
-| 3 | `codecrafter.yaml` | 🟡 pushed on branch `chore/codecrafter-config`, PR to open |
-| 4 | Branch protection on `main` (PR + `CI / check` + 1 approval) | ⬜ you, see [15](15-bot-account-setup.md) |
-| 5 | Bot account as a Write collaborator | ⬜ you, see [15](15-bot-account-setup.md) |
+| 2 | `ci.yml`: lint, format, typecheck, build | ✅ merged (PR #3) |
+| 3 | `codecrafter.yaml` | ✅ merged (PR #4) |
+| 4 | Branch protection on `main` (PR + `CI / check` + 1 approval) | ✅ ruleset `protect-main` active (deletion, force-push, PR + 1 approval, `check`) |
+| 5 | Bot account as a Write collaborator | ✅ `codecrafterbot`, token verified (push ✓, admin ✗, scope `public_repo`) |
 | 6 | Webhook → smee URL | ⬜ Phase 0 |
 
 ## Jira
