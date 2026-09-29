@@ -41,9 +41,9 @@ code-crafter/
 | D3 | Max 2 concurrent tickets | 2026-09-29 |
 | D4 | Container TTL 40 min | 2026-09-29 |
 | D5 | TypeScript for the control plane and orchestrator | 2026-09-29 |
+| D6 | GitHub + Jira + Slack; Claude Code behind `AgentRunner`; local Docker; self-hosted n8n; smee.io | 2026-09-29 |
 | D7 | Jira project key `SCRUM`; first test ticket `SCRUM-5` | 2026-09-29 |
 | D8 | Separate GitHub bot account (see [15](15-bot-account-setup.md)) | 2026-09-29 |
-| D6 | GitHub + Jira + Slack; Claude Code behind `AgentRunner`; local Docker; self-hosted n8n; smee.io | 2026-09-29 |
 
 ## Open questions
 1. **Session volume:** persist the agent home dir per ticket (proposal: yes)?
