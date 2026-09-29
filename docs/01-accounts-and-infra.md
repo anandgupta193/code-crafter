@@ -71,3 +71,15 @@ Open http://localhost:5678 and create the local owner login. To move it to the c
 ## Open questions
 - Should the bot's PRs target a **public** sandbox repo (unlimited Actions minutes, CodeRabbit free) or a private one?
 - Is your Jira site new, or an existing company site? A company site may need an admin to approve the API token.
+
+## Setup status (verified 2026-09-30)
+| Item | Identity / detail | Verified |
+|---|---|---|
+| GitHub bot | `codecrafterbot`, classic PAT `public_repo`; push ✓ admin ✗ on expense-manager | ✅ |
+| Jira | bot `codecrafterbot@gmail.com` on code-crafter.atlassian.net; reads SCRUM-5; transitions To Do → In Progress → In Review → Done | ✅ |
+| Claude | `CLAUDE_CODE_OAUTH_TOKEN` (Pro); headless `claude -p` works in a clean HOME | ✅ |
+| smee | channel created; `GITHUB_WEBHOOK_SECRET` generated | ✅ |
+| GitHub webhook | expense-manager → smee (json, 6 events) | added by owner; ping to be confirmed |
+| Slack | workspace `code-crafter`, bot `codecrafter`, private channel `#code-crafter-channel` (bot is a member), Socket Mode OK, allow-list = owner | ✅ |
+
+`.env` variables in use: `GITHUB_TOKEN`, `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `SMEE_URL`, `GITHUB_WEBHOOK_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_TRIGGER_CHANNEL_ID`, `SLACK_ALLOWED_USER_IDS`.
