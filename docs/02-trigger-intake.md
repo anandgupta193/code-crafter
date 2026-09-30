@@ -10,6 +10,15 @@ Turn a human intent ("work on CC-12") into a validated **spawn request**, and fi
 - Call the control plane's `/spawn` with the four-variable contract.
 - Reply in the thread with success or a validation error.
 
+## #ops → Jira (D25)
+Anyone can post in **#ops**. The bridge forwards the message to the n8n workflow **`#ops → Jira`**, which:
+1. looks up the poster's name and the message permalink,
+2. builds the issue (`n8n/parsers/ops-ticket.js`): title = first line, description = the whole message (bullets kept) plus "Created from Slack #ops by … · original message", label `from-slack`,
+3. creates a **Story** in `SCRUM`,
+4. **immediately replies in the Slack thread** with the ticket link and adds 🎫 (or ❌ with the reason).
+
+Then a human refines the ticket in Jira and posts its key in #code-crafter-channel, which is the normal trigger below. n8n reads the Jira and Slack credentials from its environment (`$env`), never from workflow JSON.
+
 ## Trigger message format
 ```
 *Jira ticket url* https://<site>.atlassian.net/browse/CC-12

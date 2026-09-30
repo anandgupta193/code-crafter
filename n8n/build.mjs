@@ -53,6 +53,60 @@ const postToControlPlane = (name, id, route, position) => ({
   position,
 });
 
+
+const slackGet = (name, id, urlExpr, position) => ({
+  parameters: {
+    url: urlExpr,
+    sendHeaders: true,
+    headerParameters: { parameters: [{ name: 'Authorization', value: '={{ "Bearer " + $env.SLACK_BOT_TOKEN }}' }] },
+    options: {},
+  },
+  id,
+  name,
+  type: 'n8n-nodes-base.httpRequest',
+  typeVersion: 4.2,
+  position,
+});
+
+const slackPost = (name, id, method, bodyExpr, position) => ({
+  parameters: {
+    method: 'POST',
+    url: `https://slack.com/api/${method}`,
+    sendHeaders: true,
+    headerParameters: { parameters: [{ name: 'Authorization', value: '={{ "Bearer " + $env.SLACK_BOT_TOKEN }}' }] },
+    sendBody: true,
+    specifyBody: 'json',
+    jsonBody: bodyExpr,
+    options: {},
+  },
+  id,
+  name,
+  type: 'n8n-nodes-base.httpRequest',
+  typeVersion: 4.2,
+  position,
+});
+
+const jiraCreate = (name, id, position) => ({
+  parameters: {
+    method: 'POST',
+    url: '={{ $env.JIRA_BASE_URL }}/rest/api/3/issue',
+    sendHeaders: true,
+    headerParameters: {
+      parameters: [{ name: 'Authorization', value: '={{ "Basic " + btoa($env.JIRA_EMAIL + ":" + $env.JIRA_API_TOKEN) }}' }],
+    },
+    sendBody: true,
+    specifyBody: 'json',
+    jsonBody: '={{ JSON.stringify({ fields: $json.fields }) }}',
+    // Keep going on errors so the Slack thread always gets an answer.
+    options: { response: { response: { neverError: true } } },
+  },
+  id,
+  name,
+  type: 'n8n-nodes-base.httpRequest',
+  typeVersion: 4.2,
+  position,
+});
+
 const chain = (...names) =>
   Object.fromEntries(names.slice(0, -1).map((n, i) => [n, { main: [[{ node: names[i + 1], type: 'main', index: 0 }]] }]));
 
@@ -90,6 +144,62 @@ const workflows = {
       postToControlPlane('Event → control plane', 'cc-github-event', '/api/github-event', [480, 0]),
     ],
     connections: chain('GitHub webhook', 'Summarize event', 'Event → control plane'),
+  },
+  'ops-to-jira': {
+    id: 'cc0opstojira0001',
+    name: 'code-crafter · #ops → Jira',
+    active: true,
+    settings: { executionOrder: 'v1' },
+    nodes: [
+      webhook('Slack ops message', 'ops-intake', '7d1c3f2a-5b1e-4c8e-9a51-2f6a1c0de003', [0, 0]),
+      slackGet('Who posted', 'cc-ops-user', "=https://slack.com/api/users.info?user={{ $('Slack ops message').item.json.body.user }}", [220, 0]),
+      slackGet(
+        'Permalink',
+        'cc-ops-permalink',
+        "=https://slack.com/api/chat.getPermalink?channel={{ $('Slack ops message').item.json.body.channel }}&message_ts={{ $('Slack ops message').item.json.body.ts }}",
+        [440, 0],
+      ),
+      code(
+        'Build Jira issue',
+        'cc-ops-build',
+        `${parserSource('ops-ticket.js')}
+
+const msg = $('Slack ops message').item.json.body;
+const u = $('Who posted').item.json.user || {};
+const author = (u.profile && (u.profile.real_name || u.profile.display_name)) || u.real_name || u.name || msg.user;
+const permalink = $('Permalink').item.json.permalink;
+return { json: opsToJiraIssue(msg.text, { author, permalink, projectKey: 'SCRUM', issueType: 'Story' }) };`,
+        [660, 0],
+      ),
+      jiraCreate('Create Jira issue', 'cc-ops-create', [880, 0]),
+      code(
+        'Reply text',
+        'cc-ops-reply-text',
+        `const msg = $('Slack ops message').item.json.body;
+const built = $('Build Jira issue').item.json;
+const r = $json;
+let text;
+if (r.key) {
+  const site = String(r.self || '').replace(/\\/rest\\/.*$/, '');
+  text = '🎫 Created <' + site + '/browse/' + r.key + '|' + r.key + '>: ' + built.fields.summary +
+    '\\nRefine it in Jira, then post \`' + r.key + '\` in the code-crafter channel to start work.';
+} else {
+  const why = built.skip || JSON.stringify(r.errors || r.errorMessages || r).slice(0, 300);
+  text = '❌ Could not create a Jira ticket: ' + why;
+}
+return { json: { channel: msg.channel, thread_ts: msg.ts, text, key: r.key || null } };`,
+        [1100, 0],
+      ),
+      slackPost('Reply in thread', 'cc-ops-reply', 'chat.postMessage', '={{ JSON.stringify({ channel: $json.channel, thread_ts: $json.thread_ts, text: $json.text, unfurl_links: false }) }}', [1320, 0]),
+      slackPost(
+        'React',
+        'cc-ops-react',
+        'reactions.add',
+        "={{ JSON.stringify({ channel: $('Reply text').item.json.channel, timestamp: $('Reply text').item.json.thread_ts, name: $('Reply text').item.json.key ? 'ticket' : 'x' }) }}",
+        [1540, 0],
+      ),
+    ],
+    connections: chain('Slack ops message', 'Who posted', 'Permalink', 'Build Jira issue', 'Create Jira issue', 'Reply text', 'Reply in thread', 'React'),
   },
 };
 

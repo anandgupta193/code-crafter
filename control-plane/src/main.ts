@@ -36,9 +36,13 @@ const router = new EventRouter({
 const bridge = cfg.slack.appToken
   ? new SlackBridge({
       appToken: cfg.slack.appToken,
-      channel: cfg.slack.channel,
-      allowedUsers: cfg.slack.allowedUsers,
-      forwardUrl: `${cfg.n8nWebhookBase}/slack-trigger`,
+      routes: [
+        ...(cfg.slack.channel
+          ? [{ name: 'code-crafter', channel: cfg.slack.channel, allowedUsers: cfg.slack.allowedUsers, forwardUrl: `${cfg.n8nWebhookBase}/slack-trigger` }]
+          : []),
+        // #ops: anyone may post; the n8n workflow turns the message into a Jira Story.
+        ...(cfg.slack.opsChannel ? [{ name: 'ops', channel: cfg.slack.opsChannel, allowedUsers: [], forwardUrl: `${cfg.n8nWebhookBase}/ops-intake` }] : []),
+      ],
       store,
       onRejectedUser: async (e) => {
         if (e.channel && e.ts) await chat.post(e.channel, '🙅 Only allow-listed users can start code-crafter tickets.', e.ts);

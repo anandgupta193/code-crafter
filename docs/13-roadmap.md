@@ -59,6 +59,7 @@ code-crafter/
 | D21 | "No behaviour change" is verified by **human review** for now (no tests in the repo — the biggest trust gap; revisit with a Vitest ticket) | 2026-09-30 |
 | D22 | n8n: **git is the source of truth** (`n8n/workflows/*.json`, tested `n8n/parsers/*.js`); reuse the existing `n8n_data` volume in compose | 2026-09-30 |
 | D24 | Slack trigger: full format or shorthand `SCRUM-2`; service defaults when only one is registered; `Environment` ignored | 2026-09-30 |
+| D25 | Tickets come from Slack **#ops**: any message there becomes a Jira Story (title = first line) via an n8n workflow that replies in the thread with the link; humans refine the ticket, then trigger code-crafter | 2026-09-30 |
 | D23 | Default model **haiku** (pipeline testing). Jira label `model:sonnet` / `model:opus` overrides it. Pro token verified for sonnet-5-5 and opus-5-5 | 2026-09-30 |
 
 ## Phase 1a acceptance checklist (agreed 2026-09-30)

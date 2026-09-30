@@ -16,7 +16,7 @@ export interface Config {
   network: string;
   maxConcurrent: number;
   hardCapMs: number;
-  slack: { botToken?: string; appToken?: string; channel?: string; allowedUsers: string[] };
+  slack: { botToken?: string; appToken?: string; channel?: string; opsChannel?: string; allowedUsers: string[] };
   jira: { baseUrl: string; email: string; token: string };
   services: Service[];
   githubToken: string;
@@ -55,6 +55,7 @@ export function loadConfig(): Config {
       botToken: process.env.SLACK_BOT_TOKEN,
       appToken: process.env.SLACK_APP_TOKEN,
       channel: process.env.SLACK_TRIGGER_CHANNEL_ID,
+      opsChannel: process.env.SLACK_OPS_CHANNEL_ID || undefined,
       allowedUsers: (process.env.SLACK_ALLOWED_USER_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     },
     jira: { baseUrl: required('JIRA_BASE_URL').replace(/\/$/, ''), email: required('JIRA_EMAIL'), token: required('JIRA_API_TOKEN') },

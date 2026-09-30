@@ -29,11 +29,17 @@ export function decide(e: SlackMessageEvent, channel: string | undefined, allowe
   return { forward: true };
 }
 
+/** One Slack channel → one n8n webhook. An empty allow-list means anyone in the channel. */
+export interface BridgeRoute {
+  name: string;
+  channel: string;
+  allowedUsers: string[];
+  forwardUrl: string;
+}
+
 export interface BridgeOptions {
   appToken: string;
-  channel?: string;
-  allowedUsers: string[];
-  forwardUrl: string; // n8n webhook
+  routes: BridgeRoute[];
   store: Store;
   onRejectedUser?: (e: SlackMessageEvent) => Promise<void>;
 }
@@ -110,7 +116,9 @@ export class SlackBridge {
     if (env.type !== 'events_api') return;
 
     const e = env.payload?.event as SlackMessageEvent;
-    const d = decide(e, this.opts.channel, this.opts.allowedUsers);
+    const route = this.opts.routes.find((r) => r.channel === e.channel);
+    if (!route) return;
+    const d = decide(e, route.channel, route.allowedUsers);
     if (!d.forward) {
       if (d.notify) await this.opts.onRejectedUser?.(e);
       return;
@@ -118,14 +126,14 @@ export class SlackBridge {
     // Dedupe Slack retries.
     if (!(await this.opts.store.acquire(keys.slackSeen(e.ts!), 24 * 3600))) return;
 
-    log.step(`slack trigger from ${e.user}: ${String(e.text ?? '').slice(0, 80).replace(/\s+/g, ' ')}`);
+    log.step(`slack ${route.name} from ${e.user}: ${String(e.text ?? '').slice(0, 80).replace(/\s+/g, ' ')}`);
     try {
-      const res = await fetch(this.opts.forwardUrl, {
+      const res = await fetch(route.forwardUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: e.text ?? '', channel: e.channel, ts: e.ts, user: e.user }),
       });
-      if (!res.ok) log.warn(`n8n webhook → ${res.status} (is the slack-trigger workflow published?)`);
+      if (!res.ok) log.warn(`n8n webhook ${route.name} → ${res.status} (is the workflow published?)`);
     } catch (err) {
       log.error(`could not reach n8n: ${String(err)}`);
     }

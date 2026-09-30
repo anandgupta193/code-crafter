@@ -1,0 +1,267 @@
+{
+  "id": "cc0opstojira0001",
+  "name": "code-crafter · #ops → Jira",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ops-intake",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "7d1c3f2a-5b1e-4c8e-9a51-2f6a1c0de003-node",
+      "name": "Slack ops message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "7d1c3f2a-5b1e-4c8e-9a51-2f6a1c0de003"
+    },
+    {
+      "parameters": {
+        "url": "=https://slack.com/api/users.info?user={{ $('Slack ops message').item.json.body.user }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.SLACK_BOT_TOKEN }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cc-ops-user",
+      "name": "Who posted",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://slack.com/api/chat.getPermalink?channel={{ $('Slack ops message').item.json.body.channel }}&message_ts={{ $('Slack ops message').item.json.body.ts }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.SLACK_BOT_TOKEN }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cc-ops-permalink",
+      "name": "Permalink",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// #ops message → Jira issue fields (docs/02-trigger-intake.md, \"ops intake\").\n// Title = first line; description = the whole message + who posted it + a link back to Slack.\n\nfunction opsToJiraIssue(rawText, opts) {\n  const o = opts || {};\n  const text = String(rawText || '')\n    .replace(/<(https?:[^>|]+)\\|([^>]+)>/g, '$2 ($1)') // <url|label> → label (url)\n    .replace(/<(https?:[^>]+)>/g, '$1') // <url> → url\n    .replace(/<#[A-Z0-9]+\\|([^>]+)>/g, '#$1') // <#C123|channel> → #channel\n    .replace(/<@([A-Z0-9]+)>/g, '@$1') // <@U123> → @U123\n    .replace(/&lt;/g, '<')\n    .replace(/&gt;/g, '>')\n    .replace(/&amp;/g, '&')\n    .trim();\n\n  if (!text) return { skip: 'empty message' };\n\n  const lines = text.split('\\n');\n  const first = lines.find((l) => l.trim()) || '';\n  let summary = first.replace(/[*_~`>]/g, '').replace(/\\s+/g, ' ').trim();\n  if (summary.length > 120) summary = summary.slice(0, 117).replace(/\\s+\\S*$/, '') + '…';\n  if (!summary) return { skip: 'no text for a title' };\n\n  // Paragraphs split on blank lines; \"- \" / \"• \" / \"* \" lines become bullet lists.\n  const blocks = [];\n  let para = [];\n  let bullets = [];\n  const flushPara = () => {\n    if (para.length) {\n      const content = [];\n      para.forEach((l, i) => {\n        if (i) content.push({ type: 'hardBreak' });\n        content.push({ type: 'text', text: l });\n      });\n      blocks.push({ type: 'paragraph', content });\n    }\n    para = [];\n  };\n  const flushBullets = () => {\n    if (bullets.length) {\n      blocks.push({\n        type: 'bulletList',\n        content: bullets.map((b) => ({ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: b }] }] })),\n      });\n    }\n    bullets = [];\n  };\n  for (const raw of lines) {\n    const line = raw.trimEnd();\n    const bullet = line.match(/^\\s*(?:[-•*])\\s+(.*)$/);\n    if (bullet) {\n      flushPara();\n      bullets.push(bullet[1]);\n    } else if (!line.trim()) {\n      flushPara();\n      flushBullets();\n    } else {\n      flushBullets();\n      para.push(line);\n    }\n  }\n  flushPara();\n  flushBullets();\n\n  const footer = [{ type: 'text', text: 'Created from Slack #ops' + (o.author ? ' by ' + o.author : '') }];\n  if (o.permalink) {\n    footer.push({ type: 'text', text: ' · ' });\n    footer.push({ type: 'text', text: 'original message', marks: [{ type: 'link', attrs: { href: o.permalink } }] });\n  }\n  blocks.push({ type: 'rule' });\n  blocks.push({ type: 'paragraph', content: footer });\n\n  return {\n    fields: {\n      project: { key: o.projectKey || 'SCRUM' },\n      issuetype: { name: o.issueType || 'Story' },\n      summary: summary,\n      description: { type: 'doc', version: 1, content: blocks },\n      labels: ['from-slack'],\n    },\n  };\n}\n\nconst msg = $('Slack ops message').item.json.body;\nconst u = $('Who posted').item.json.user || {};\nconst author = (u.profile && (u.profile.real_name || u.profile.display_name)) || u.real_name || u.name || msg.user;\nconst permalink = $('Permalink').item.json.permalink;\nreturn { json: opsToJiraIssue(msg.text, { author, permalink, projectKey: 'SCRUM', issueType: 'Story' }) };"
+      },
+      "id": "cc-ops-build",
+      "name": "Build Jira issue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.JIRA_BASE_URL }}/rest/api/3/issue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Basic \" + btoa($env.JIRA_EMAIL + \":\" + $env.JIRA_API_TOKEN) }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ fields: $json.fields }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "cc-ops-create",
+      "name": "Create Jira issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const msg = $('Slack ops message').item.json.body;\nconst built = $('Build Jira issue').item.json;\nconst r = $json;\nlet text;\nif (r.key) {\n  const site = String(r.self || '').replace(/\\/rest\\/.*$/, '');\n  text = '🎫 Created <' + site + '/browse/' + r.key + '|' + r.key + '>: ' + built.fields.summary +\n    '\\nRefine it in Jira, then post `' + r.key + '` in the code-crafter channel to start work.';\n} else {\n  const why = built.skip || JSON.stringify(r.errors || r.errorMessages || r).slice(0, 300);\n  text = '❌ Could not create a Jira ticket: ' + why;\n}\nreturn { json: { channel: msg.channel, thread_ts: msg.ts, text, key: r.key || null } };"
+      },
+      "id": "cc-ops-reply-text",
+      "name": "Reply text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/chat.postMessage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.SLACK_BOT_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: $json.channel, thread_ts: $json.thread_ts, text: $json.text, unfurl_links: false }) }}",
+        "options": {}
+      },
+      "id": "cc-ops-reply",
+      "name": "Reply in thread",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://slack.com/api/reactions.add",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.SLACK_BOT_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ channel: $('Reply text').item.json.channel, timestamp: $('Reply text').item.json.thread_ts, name: $('Reply text').item.json.key ? 'ticket' : 'x' }) }}",
+        "options": {}
+      },
+      "id": "cc-ops-react",
+      "name": "React",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Slack ops message": {
+      "main": [
+        [
+          {
+            "node": "Who posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Who posted": {
+      "main": [
+        [
+          {
+            "node": "Permalink",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Permalink": {
+      "main": [
+        [
+          {
+            "node": "Build Jira issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Jira issue": {
+      "main": [
+        [
+          {
+            "node": "Create Jira issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Jira issue": {
+      "main": [
+        [
+          {
+            "node": "Reply text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply text": {
+      "main": [
+        [
+          {
+            "node": "Reply in thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply in thread": {
+      "main": [
+        [
+          {
+            "node": "React",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
