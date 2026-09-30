@@ -92,7 +92,7 @@ const jiraCreate = (name, id, position) => ({
     url: '={{ $env.JIRA_BASE_URL }}/rest/api/3/issue',
     sendHeaders: true,
     headerParameters: {
-      parameters: [{ name: 'Authorization', value: '={{ "Basic " + btoa($env.JIRA_EMAIL + ":" + $env.JIRA_API_TOKEN) }}' }],
+      parameters: [{ name: 'Authorization', value: '={{ "Basic " + ($env.JIRA_EMAIL + ":" + $env.JIRA_API_TOKEN).base64Encode() }}' }],
     },
     sendBody: true,
     specifyBody: 'json',

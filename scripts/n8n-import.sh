@@ -13,4 +13,7 @@ done
 docker compose restart n8n >/dev/null
 echo "▶ waiting for n8n"
 until curl -fs http://127.0.0.1:5678/healthz >/dev/null; do sleep 1; done
+# /healthz turns green before published webhooks are registered — wait until one answers (404 = not yet).
+until [ "$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS http://127.0.0.1:5678/webhook/github)" != "404" ]; do sleep 1; done
+sleep 2
 echo "✓ workflows imported and published: $(jq -r '.name' n8n/workflows/*.json | paste -sd ', ' -)"

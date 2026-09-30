@@ -92,7 +92,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ \"Basic \" + btoa($env.JIRA_EMAIL + \":\" + $env.JIRA_API_TOKEN) }}"
+              "value": "={{ \"Basic \" + ($env.JIRA_EMAIL + \":\" + $env.JIRA_API_TOKEN).base64Encode() }}"
             }
           ]
         },
