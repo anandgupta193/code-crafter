@@ -52,6 +52,8 @@ export class TicketAgent {
   private lastCheckpointNotice = 0;
   private pendingPrCheck = false;
   private pendingPush = false;
+  /** Set when the agent itself ran `gh pr ready` this round — the only case the draft guardrail reverts. */
+  private agentMarkedReady = false;
   private lastUsagePct?: number;
 
   private d: Deps;
@@ -225,6 +227,7 @@ export class TicketAgent {
         log.tool(`${e.name} ${oneLine(target, 160)}`);
         if (/\bgh pr create\b/.test(cmd)) this.pendingPrCheck = true;
         if (/\bgit push\b/.test(cmd)) this.pendingPush = true;
+        if (/\bgh pr ready\b/.test(cmd) && !/--undo\b/.test(cmd)) this.agentMarkedReady = true;
         break;
       }
       case 'tool_result':
@@ -330,15 +333,20 @@ export class TicketAgent {
     await this.announcePrIfNew();
   }
 
-  /** After every round: force draft + restore markers (D12). */
+  /**
+   * After every round: undo the agent marking the PR ready, and restore markers (D12).
+   * A human marking the PR ready is their decision — never reverted.
+   */
   private async afterRound(): Promise<void> {
     const { gh, ctx } = this.d;
+    const agentMarkedReady = this.agentMarkedReady;
+    this.agentMarkedReady = false;
     const pr = await gh.findPr(ctx.branch).catch(() => undefined);
     if (!pr) return;
     this.pr = pr;
     if (pr.state !== 'OPEN') return;
-    if (this.d.repoConfig.pullRequest.draft && (await gh.ensureDraft(pr).catch(() => false))) {
-      log.warn(`PR #${pr.number} was marked ready — converted back to draft (guardrail)`);
+    if (this.d.repoConfig.pullRequest.draft && agentMarkedReady && (await gh.ensureDraft(pr).catch(() => false))) {
+      log.warn(`agent marked PR #${pr.number} ready — converted back to draft (guardrail)`);
     }
     const fixed = ensureMarkers(pr.body ?? '', this.issue.key, this.threadTs);
     if (fixed !== (pr.body ?? '').trimEnd()) {
