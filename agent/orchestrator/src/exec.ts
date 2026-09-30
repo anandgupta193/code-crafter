@@ -16,15 +16,18 @@ export interface ExecOptions {
 /** Run a command without a shell. Never throws on non-zero exit; check `code`. */
 export function run(cmd: string, args: string[], opts: ExecOptions = {}): Promise<ExecResult> {
   return new Promise((resolve) => {
+    const hasInput = opts.input !== undefined;
     const child = spawn(cmd, args, {
       cwd: opts.cwd,
       env: opts.env ?? process.env,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      // Only open stdin when we have something to send: writing to a child that already exited
+      // raises EPIPE, which crashed the whole orchestrator on SCRUM-7.
+      stdio: [hasInput ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (d) => (stdout += d));
-    child.stderr.on('data', (d) => (stderr += d));
+    child.stdout!.on('data', (d) => (stdout += d));
+    child.stderr!.on('data', (d) => (stderr += d));
     const timer = opts.timeoutMs ? setTimeout(() => child.kill('SIGTERM'), opts.timeoutMs) : undefined;
     child.on('error', (err) => {
       if (timer) clearTimeout(timer);
@@ -34,7 +37,10 @@ export function run(cmd: string, args: string[], opts: ExecOptions = {}): Promis
       if (timer) clearTimeout(timer);
       resolve({ code: code ?? 1, stdout, stderr });
     });
-    child.stdin.end(opts.input ?? '');
+    if (child.stdin) {
+      child.stdin.on('error', () => {}); // child exited before reading its input — its exit code tells the story
+      child.stdin.end(opts.input);
+    }
   });
 }
 

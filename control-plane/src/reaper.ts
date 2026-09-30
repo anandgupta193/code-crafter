@@ -11,6 +11,8 @@ const VOLUME_IDLE_MS = 7 * 24 * 3600_000; // D18
 export interface ReaperOptions {
   hardCapMs: number;
   now?: () => number;
+  /** Tell the ticket's Slack thread that its container crashed (once per container run). */
+  reportCrash?: (key: string, name: string, exitCode: number) => Promise<void>;
 }
 
 export async function reapOnce(docker: DockerApi, store: Store, opts: ReaperOptions): Promise<string[]> {
@@ -26,6 +28,9 @@ export async function reapOnce(docker: DockerApi, store: Store, opts: ReaperOpti
         await docker.stop(c.name, 150);
         actions.push(`stopped ${c.name} (past hard cap)`);
       }
+    } else if (c.exitCode && opts.reportCrash && (await store.acquire(keys.crashReported(c.name, c.startedAt), 7 * 24 * 3600))) {
+      await opts.reportCrash(c.key, c.name, c.exitCode);
+      actions.push(`reported crash of ${c.name} (exit ${c.exitCode})`);
     } else if (age > KEEP_EXITED_MS) {
       await docker.remove(c.name);
       actions.push(`removed exited ${c.name}`);

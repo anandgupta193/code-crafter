@@ -102,3 +102,17 @@ describe('reaper', () => {
     expect(await store.get(keys.lastActive('SCRUM-3'))).toBe(String(now));
   });
 });
+
+describe('reaper crash reports', () => {
+  it('reports a crashed container once', async () => {
+    const docker = new FakeDocker();
+    const store = new MemoryStore();
+    const now = Date.now();
+    docker.containers.push({ name: 'code-crafter-scrum-7', key: 'SCRUM-7', state: 'exited', startedAt: now - 60_000, exitCode: 1 });
+    const reported: string[] = [];
+    const opts = { hardCapMs: 90 * 60_000, now: () => now, reportCrash: async (k: string, _n: string, code: number) => void reported.push(`${k}:${code}`) };
+    await reapOnce(docker, store, opts);
+    await reapOnce(docker, store, opts);
+    expect(reported).toEqual(['SCRUM-7:1']);
+  });
+});

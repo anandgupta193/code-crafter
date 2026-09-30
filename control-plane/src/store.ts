@@ -21,6 +21,7 @@ export const keys = {
   slackSeen: (ts: string) => `codecrafter:slack:seen:${ts}`,
   delivery: (id: string) => `codecrafter:delivery:${id}`,
   commands: (k: string) => `codecrafter:commands:${k}`,
+  crashReported: (name: string, startedAt: number) => `codecrafter:crash:${name}:${startedAt}`,
 };
 
 export async function connectRedis(url: string): Promise<Store> {

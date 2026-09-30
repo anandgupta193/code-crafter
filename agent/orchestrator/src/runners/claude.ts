@@ -34,6 +34,7 @@ export class ClaudeCodeRunner implements AgentRunner {
       env: opts.env ?? process.env,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    child.stdin.on('error', () => {}); // EPIPE if claude exits before reading the prompt; the exit code reports it
     child.stdin.end(opts.prompt);
 
     let sessionId = opts.resumeSessionId;

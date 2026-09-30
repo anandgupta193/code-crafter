@@ -111,6 +111,22 @@ function shutdown(reason: string): Promise<void> {
   return stopping;
 }
 
+// Last resort: never die silently (SCRUM-7 crashed with nobody told).
+let crashing = false;
+async function crash(kind: string, err: unknown): Promise<void> {
+  if (crashing) return;
+  crashing = true;
+  const msg = err instanceof Error ? err.stack ?? err.message : String(err);
+  log.error(`${kind}: ${msg}`);
+  const force = setTimeout(() => process.exit(1), timers.graceMs);
+  await agent.emergencyCheckpoint().catch(() => {});
+  await slack.post(`❌ code-crafter crashed on ${ctx.jiraKey} (${kind}): \`${String(err instanceof Error ? err.message : err).slice(0, 200)}\`. Work so far is pushed; re-trigger to resume.`, store.get().slackThreadTs);
+  clearTimeout(force);
+  process.exit(1);
+}
+process.on('uncaughtException', (err) => void crash('uncaught exception', err));
+process.on('unhandledRejection', (err) => void crash('unhandled rejection', err));
+
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
 setTimeout(() => void shutdown(`hard cap ${timers.hardCapMs / 60_000} min`), timers.hardCapMs).unref();

@@ -109,7 +109,16 @@ server.listen(cfg.port, () => {
 });
 await bridge?.start();
 
-const reaper = setInterval(() => void reapOnce(docker, store, { hardCapMs: cfg.hardCapMs }).catch((e) => log.warn(`reaper: ${e}`)), 60_000);
+const reportCrash = async (key: string, name: string, exitCode: number) => {
+  const thread = await store.get(keys.thread(key));
+  if (thread && cfg.slack.channel) {
+    await chat.post(cfg.slack.channel, `❌ \`${name}\` stopped with an error (exit ${exitCode}). Logs: \`docker logs ${name}\`. Post ${key} again to resume from the branch.`, thread);
+  }
+};
+const reaper = setInterval(
+  () => void reapOnce(docker, store, { hardCapMs: cfg.hardCapMs, reportCrash }).catch((e) => log.warn(`reaper: ${e}`)),
+  60_000,
+);
 
 const shutdown = () => {
   log.info('shutting down');

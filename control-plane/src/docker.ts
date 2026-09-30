@@ -6,6 +6,7 @@ export interface TicketContainer {
   key: string;
   state: string; // running | exited | created | ...
   startedAt: number; // epoch ms, from the codecrafter.started label
+  exitCode?: number; // parsed from Status "Exited (1) 3 minutes ago"
 }
 
 export interface ContainerSpec {
@@ -83,6 +84,7 @@ export class DockerEngine implements DockerApi {
       key: c.Labels?.['codecrafter.key'] ?? '',
       state: c.State,
       startedAt: Number(c.Labels?.['codecrafter.started'] ?? 0) * 1000,
+      exitCode: /Exited \((\d+)\)/.test(c.Status ?? '') ? Number(/Exited \((\d+)\)/.exec(c.Status)![1]) : undefined,
     }));
   }
 
