@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const audioDir = path.join(root, 'public', 'audio');
-const VOICE = process.argv[2] ?? 'Rishi';
+const VOICE = process.argv[2] ?? 'Samantha';
 const RATE = 172; // words per minute
 const FPS = 30;
 const LEAD_IN = 0.35; // seconds of silence before each line
