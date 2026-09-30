@@ -195,7 +195,7 @@ export class EventRouter {
     }
     // Inline review comments arrive as their own events; only the review's summary body is a command here.
     if (!r.body?.trim()) return 'ignored (review without a summary body)';
-    return this.dispatch(key, service, e, 'handle_comment', { author: e.sender, body: r.body, kind: 'review', reviewState: state, url: r.url });
+    return this.dispatch(key, service, e, 'handle_comment', { id: r.id, author: e.sender, body: r.body, kind: 'review', reviewState: state, url: r.url });
   }
 
   private async onWorkflowRun(e: GithubEvent, key: string, service: Service): Promise<string> {

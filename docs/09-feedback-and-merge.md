@@ -9,12 +9,13 @@ Close the loop: review comments and CI failures become new agent rounds, and a m
 - **Only allow-listed humans** (`GITHUB_ALLOWED_USERS`) can drive the agent; bots and strangers are ignored (D17).
 - **Delivery:** `POST code-crafter-<key>:8080/command` (with the internal token). If the container isn't running, the command goes to Redis `codecrafter:commands:<key>` and the ticket is respawned. On boot the container drains the queue and skips the full ticket prompt (the session already knows the ticket).
 - **In the container:** commands queue up and are batched into one feedback round (same session) that runs the same checks, guardrails and "done" flow as the first run. `pause` interrupts immediately (checkpoint) and survives restarts; `resume` and `approve` continue; `stop` shuts the container down.
-- **Not yet:** comment scoring/dedupe against later commits (below), CodeRabbit handling, auto-resume after a usage-limit pause.
+- **Triage (built, `agent/orchestrator/src/triage.ts`):** before every feedback round, and in the resume prompt, a comment counts as **handled** if its thread is resolved, if code-crafter replied later in the same thread, or if a finished round recorded it (state + a hidden `<!-- cc-handled: … -->` marker in the ✅ comment, so it survives losing the volume). Only the newest CI failure is kept. Order: control → CI failure → change requests (inline and "request changes") → plain comments, newest first in each group. Skipped items are logged and summarised in Slack.
+- **Not yet:** CodeRabbit handling, auto-resume after a usage-limit pause.
 
 ## Review comments → `handle_comment`
 Prompt carries: comment body, author, file, line, `diff_hunk`, the full review thread, and whether it comes from a human or a review bot.
 
-**Dedupe instead of replay** (on resume the agent re-reads *all* PR comments, so it must avoid redoing work):
+**Dedupe instead of replay** *(original design; the as-built triage above uses explicit signals such as resolved threads, bot replies and handled markers, rather than guessing from commit messages)* (on resume the agent re-reads *all* PR comments, so it must avoid redoing work):
 1. Drop comments older than a later commit that plausibly addresses them. Evidence: the commit touches the same file or lines, or the commit message references the comment ("fixed comment", "address review", keywords from the comment).
 2. Drop resolved threads (GitHub `isResolved` via GraphQL).
 3. Score what's left by **criticality** (human > bot; "bug/security/broken" > "nit") and **recency**. Anything under 10 minutes old jumps to the top.

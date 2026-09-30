@@ -14,6 +14,8 @@ export interface TicketState {
   planAnnounced?: boolean;
   lastDoneSha?: string;
   planApproved?: boolean;
+  /** PR comment/review IDs already handled by a finished round (triage never redoes these). */
+  handledComments?: number[];
 }
 
 export class StateStore {

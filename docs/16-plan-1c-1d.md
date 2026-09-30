@@ -44,7 +44,7 @@ A "last checked" timestamp per PR is stored in Redis. Events synthesised this wa
 **Today:** we don't check the HMAC; instead every actionable claim is re-checked with the GitHub API.
 **Design:** the n8n webhook node receives the **raw body**; n8n forwards `{rawBody (base64), signature header}` along with the parsed summary; the control plane verifies `sha256=HMAC(GITHUB_WEBHOOK_SECRET, raw)` before routing. Unsigned or badly signed events are dropped and logged. The catch-up loop's events are trusted because they come from the GitHub API.
 
-### B4 · Comment dedupe and priority (doc 09)
+### B4 · Comment dedupe and priority (doc 09) — ✅ done 2026-10-01
 Before a feedback round:
 - **skip** comments already replied to by the bot, or in threads GitHub marks resolved (GraphQL `isResolved`)
 - **order** the batch: CI failure first, then human change requests, then plain comments, newest first

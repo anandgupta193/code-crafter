@@ -26,6 +26,7 @@ import {
 import type { AgentEvent, AgentRunner } from './runners/types.ts';
 import type { StateStore } from './state.ts';
 import { supervise, type Outcome } from './supervisor.ts';
+import { commentIds, handledMarker, handledReason, parseHandledMarkers, triage, type TriageContext } from './triage.ts';
 
 export type FinalStatus = 'done' | 'paused' | 'paused-manual' | 'needs-human' | 'waiting-approval' | 'killed';
 
@@ -64,6 +65,8 @@ export class TicketAgent {
   private working = false;
   private paused = false;
   private roundAbort?: AbortController;
+  /** Comment/review IDs the current feedback round is handling — recorded when it finishes green. */
+  private roundHandled: number[] = [];
 
   private d: Deps;
 
@@ -184,10 +187,15 @@ export class TicketAgent {
         return 'paused-manual';
       }
 
-      const live = await this.dropStalePipelineFailures(feedback);
+      const fresh = await this.dropStalePipelineFailures(feedback);
+      const { keep: live, skipped } = triage(fresh, await this.triageContext());
+      for (const s of skipped) log.info(`triage: skipping ${s.cmd.type}${s.cmd.payload.id ? ` #${s.cmd.payload.id}` : ''} (${s.reason})`);
+      if (skipped.length) await this.notify(`🧹 Skipped ${skipped.length} item${skipped.length > 1 ? 's' : ''} already handled or superseded.`);
       if (!live.length) continue;
       await this.notify(`💬 Working on ${describeBatch(live)}`);
+      this.roundHandled = commentIds(live);
       status = await this.work(buildFeedbackPrompt(live, this.feedbackContext()), signal);
+      this.roundHandled = [];
     }
     return status;
   }
@@ -397,6 +405,10 @@ export class TicketAgent {
     await this.ensurePr();
     await this.afterRound();
 
+    const handled = this.roundHandled;
+    if (handled.length) {
+      await store.update({ handledComments: [...new Set([...(store.get().handledComments ?? []), ...handled])] });
+    }
     const head = await git.head();
     if (store.get().lastDoneSha === head) {
       log.info('already reported done for this commit');
@@ -412,7 +424,8 @@ export class TicketAgent {
           checksTable(checks),
           '',
           `HEAD: \`${head.slice(0, 7)}\` · This PR stays a draft — mark it *Ready for review* when you're happy.`,
-        ].join('\n'),
+          handledMarker(handled),
+        ].join('\n').trimEnd(),
       );
       await this.notify(`✅ Done — ${this.prLink()} is ready for your review (local checks pass).`);
     }
@@ -527,12 +540,57 @@ export class TicketAgent {
     return this.pr ? `<${this.pr.url}|PR #${this.pr.number}>` : 'the PR';
   }
 
+  /** What triage needs: thread replies/resolution from GitHub + everything recorded as handled. */
+  private async triageContext(): Promise<TriageContext> {
+    const handled = new Set(this.d.store.get().handledComments ?? []);
+    const botLogin = await this.d.gh.botLogin().catch(() => 'codecrafterbot');
+    if (!this.pr) return { botLogin, threads: [], handledIds: handled };
+    const act = await this.d.gh.activity(this.repoSlug(), this.pr.number).catch((e) => {
+      log.warn(`triage: could not load PR activity (${e}) — nothing skipped`);
+      return undefined;
+    });
+    if (!act) return { botLogin, threads: [], handledIds: handled };
+    const botBodies = act.comments.filter((c) => c.author === botLogin).map((c) => c.body);
+    for (const id of parseHandledMarkers(botBodies)) handled.add(id);
+    return { botLogin, threads: act.threads, handledIds: handled };
+  }
+
+  private repoSlug(): string {
+    return this.d.ctx.repoUrl.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '');
+  }
+
+  /** Resume digest: CI state + only the human feedback that still needs work (D-triage). */
+  private async prDigest(): Promise<string | undefined> {
+    if (!this.pr) return undefined;
+    const { gh } = this.d;
+    const checks = await gh.checksSummary(this.pr.number);
+    const act = await gh.activity(this.repoSlug(), this.pr.number).catch(() => undefined);
+    if (!act) return `${checks}\n\n(could not load comments)`;
+    const ctx = await this.triageContext();
+    const human = (a: { author: string }) => a.author !== ctx.botLogin && !a.author.endsWith('[bot]');
+    const items = [
+      ...act.threads.flatMap((t) => t.comments).filter(human).map((c) => ({ ...c, where: c.path ? `${c.path}${c.line ? `:${c.line}` : ''}` : 'inline' })),
+      ...act.comments.filter(human).map((c) => ({ ...c, where: 'conversation' })),
+      ...act.reviews.filter((r) => human(r) && r.body.trim()).map((r) => ({ ...r, where: `review (${r.state})` })),
+    ];
+    const open = items.filter((c) => !handledReason(c.id, ctx));
+    const done = items.length - open.length;
+    const list = open.map((c) => `- [#${c.id}] ${c.author} on ${c.where} (${c.createdAt}): ${c.body.replace(/\s+/g, ' ').slice(0, 400)}`);
+    return [
+      checks,
+      `Open feedback (not yet handled):\n${list.join('\n') || '- none'}`,
+      done ? `${done} earlier comment${done > 1 ? 's were' : ' was'} already handled — don't redo ${done > 1 ? 'them' : 'it'}.` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
   private async existingWork() {
     const { git, gh } = this.d;
     return {
       log: await git.logSinceBase().catch(() => ''),
       prUrl: this.pr?.url,
-      prDigest: this.pr ? await gh.prDigest(this.pr.number) : undefined,
+      prDigest: await this.prDigest(),
     };
   }
 
