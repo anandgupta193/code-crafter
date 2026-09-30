@@ -71,6 +71,8 @@ code-crafter/
 8. The idle timer shuts the container down by itself after it finishes.
 9. No secrets in commits, PR text, Slack or logs.
 
+**Result (2026-09-30):** items 1–6, 8 and 9 pass on SCRUM-2 ([expense-manager#6](https://github.com/anandgupta193/expense-manager/pull/6)). Resume on an existing branch and the same session is verified. Item 7 (kill while working) was **skipped** by the owner. Lessons: Haiku under-delivers on acceptance criteria (the `useChat.ts` extraction); the draft guardrail must never override a human (fixed).
+
 Out of scope for 1a: Slack trigger, webhooks, review-comment handling, auto-resume scheduler, Cursor.
 
 ## Open questions
