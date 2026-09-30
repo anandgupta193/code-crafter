@@ -1,0 +1,63 @@
+{
+  "fps": 30,
+  "voice": "Rishi",
+  "totalFrames": 1653,
+  "scenes": [
+    {
+      "line": "What if one Slack message could turn into a finished pull request?",
+      "audio": "audio/line-1.wav",
+      "speechSeconds": 3.93,
+      "leadInFrames": 11,
+      "frames": 151
+    },
+    {
+      "line": "You post an idea in Slack. Code-Crafter instantly turns it into a Jira ticket.",
+      "audio": "audio/line-2.wav",
+      "speechSeconds": 5.38,
+      "leadInFrames": 11,
+      "frames": 195
+    },
+    {
+      "line": "Post the ticket in the code-crafter channel, and the system picks it up.",
+      "audio": "audio/line-3.wav",
+      "speechSeconds": 4.2,
+      "leadInFrames": 11,
+      "frames": 159
+    },
+    {
+      "line": "It spins up a brand-new container just for this ticket, clones the code, and creates its own branch.",
+      "audio": "audio/line-4.wav",
+      "speechSeconds": 6.5,
+      "leadInFrames": 11,
+      "frames": 228
+    },
+    {
+      "line": "Claude Code reads the ticket, writes the change, commits as it goes, and opens a draft pull request.",
+      "audio": "audio/line-5.wav",
+      "speechSeconds": 6.49,
+      "leadInFrames": 11,
+      "frames": 228
+    },
+    {
+      "line": "Then it double-checks its own work. Lint, types, build. Only green code reaches you.",
+      "audio": "audio/line-6.wav",
+      "speechSeconds": 6.14,
+      "leadInFrames": 11,
+      "frames": 218
+    },
+    {
+      "line": "Leave a review comment, and the agent wakes up, fixes it, and replies. Just like a teammate.",
+      "audio": "audio/line-7.wav",
+      "speechSeconds": 6.54,
+      "leadInFrames": 11,
+      "frames": 230
+    },
+    {
+      "line": "Merge it, and Jira moves to Done automatically. That's Code-Crafter. Post a ticket, get a pull request.",
+      "audio": "audio/line-8.wav",
+      "speechSeconds": 7.02,
+      "leadInFrames": 11,
+      "frames": 244
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "code-crafter-video",
+  "private": true,
+  "type": "module",
+  "description": "60-second explainer video for Code-Crafter, rendered with Remotion.",
+  "scripts": {
+    "audio": "node scripts/make-audio.mjs",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Explainer out/code-crafter-explainer.mp4 --codec h264 --crf 18"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.355",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.355"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.12",
+    "typescript": "5.9.2"
+  }
+}
