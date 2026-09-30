@@ -46,6 +46,7 @@ services:
       N8N_WEBHOOK_BASE: http://n8n:5678/webhook
       SERVICES_FILE: /config/services.yaml
       AGENT_NETWORK: codecrafter
+      CONTROL_PLANE_URL: http://control-plane:3000 # forwarded to agent containers
     ports:
       - "127.0.0.1:3000:3000"
     volumes:

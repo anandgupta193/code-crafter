@@ -65,3 +65,39 @@ test('github: workflow run on another branch is not routable', () => {
   assert.equal(s.routable, false);
   assert.equal(s.jiraKey, undefined);
 });
+
+test('github: review comment carries path, line and hunk', () => {
+  const s = summarizeGithubEvent(
+    { 'x-github-event': 'pull_request_review_comment', 'x-github-delivery': 'd2' },
+    {
+      action: 'created',
+      pull_request: { number: 7, html_url: 'u', head: { ref: 'CODE-CRAFTER-SCRUM-6' } },
+      comment: { id: 11, body: 'rename this', path: 'lib/a.ts', line: 12, diff_hunk: '@@ -1 +1 @@', html_url: 'c' },
+      sender: { login: 'anandgupta193', type: 'User' },
+    },
+  );
+  assert.deepEqual(s.comment, { id: 11, body: 'rename this', url: 'c', path: 'lib/a.ts', line: 12, diffHunk: '@@ -1 +1 @@', inReplyTo: undefined, kind: 'review_comment' });
+  assert.equal(s.senderType, 'User');
+});
+
+test('github: PR conversation comment needs a branch lookup', () => {
+  const s = summarizeGithubEvent(
+    { 'x-github-event': 'issue_comment' },
+    { action: 'created', issue: { number: 7, pull_request: {}, html_url: 'u' }, comment: { id: 5, body: '/codecrafter pause' } },
+  );
+  assert.equal(s.routable, false);
+  assert.equal(s.needsBranchLookup, true);
+  assert.equal(s.prNumber, 7);
+  assert.equal(s.comment.kind, 'issue_comment');
+});
+
+test('github: merged PR and failed workflow run', () => {
+  const merged = summarizeGithubEvent({ 'x-github-event': 'pull_request' }, { action: 'closed', pull_request: { number: 6, merged: true, head: { ref: 'CODE-CRAFTER-SCRUM-2' } } });
+  assert.equal(merged.merged, true);
+  const run = summarizeGithubEvent(
+    { 'x-github-event': 'workflow_run' },
+    { action: 'completed', workflow_run: { id: 99, name: 'CI', status: 'completed', conclusion: 'failure', head_sha: 'abc', head_branch: 'CODE-CRAFTER-SCRUM-2', html_url: 'r' } },
+  );
+  assert.deepEqual(run.run, { id: 99, name: 'CI', status: 'completed', conclusion: 'failure', headSha: 'abc', url: 'r' });
+  assert.equal(run.jiraKey, 'SCRUM-2');
+});

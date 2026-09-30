@@ -84,5 +84,8 @@ Out of scope for 1a: Slack trigger, webhooks, review-comment handling, auto-resu
 - n8n 2.x can't activate on import in regular mode: import, then `publish:workflow`, then restart.
 - Known gap for 1c: `issue_comment` events carry no branch, so the router must look the PR up.
 
+## Phase 1c (2026-09-30)
+Built: the router (merge → Done + ✅ + cleanup; ready → In Review; comments, reviews and CI failures → agent; `/codecrafter pause|resume|stop|approve`), queue-and-respawn, and the agent command queue with batched feedback rounds. Smoke-tested through the real n8n path (the ignore cases). **Pending a live test** on a real ticket: a review comment round-trip and a merge.
+
 ## Open questions
 - None right now. The Environment field is resolved by D24.

@@ -13,6 +13,7 @@ export interface TicketState {
   jiraPrCommented?: boolean;
   planAnnounced?: boolean;
   lastDoneSha?: string;
+  planApproved?: boolean;
 }
 
 export class StateStore {

@@ -19,6 +19,9 @@ export interface Config {
   slack: { botToken?: string; appToken?: string; channel?: string; allowedUsers: string[] };
   jira: { baseUrl: string; email: string; token: string };
   services: Service[];
+  githubToken: string;
+  githubAllowedUsers: string[];
+  controlPlaneUrl: string;
   /** Env var names forwarded into each agent container (D17: full env for now, but only what the agent uses). */
   agentEnvNames: string[];
 }
@@ -55,6 +58,9 @@ export function loadConfig(): Config {
       allowedUsers: (process.env.SLACK_ALLOWED_USER_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
     },
     jira: { baseUrl: required('JIRA_BASE_URL').replace(/\/$/, ''), email: required('JIRA_EMAIL'), token: required('JIRA_API_TOKEN') },
+    githubToken: required('GITHUB_TOKEN'),
+    githubAllowedUsers: (process.env.GITHUB_ALLOWED_USERS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    controlPlaneUrl: process.env.CONTROL_PLANE_URL ?? 'http://control-plane:3000',
     services: parseServices(readFileSync(process.env.SERVICES_FILE ?? '/config/services.yaml', 'utf8')),
     agentEnvNames: [
       'GITHUB_TOKEN',
@@ -68,6 +74,8 @@ export function loadConfig(): Config {
       'GIT_USER_NAME',
       'GIT_USER_EMAIL',
       'TZ',
+      'INTERNAL_API_TOKEN',
+      'CONTROL_PLANE_URL',
       'CC_SOFT_TIMEOUT_MIN',
       'CC_MAX_CONTINUATIONS',
       'CC_IDLE_TTL_MIN',

@@ -41,9 +41,14 @@ export class SlackWeb implements Chat {
 }
 
 export interface Tickets {
-  /** Summary + URL if the issue exists and is readable, else undefined. */
-  lookup(key: string): Promise<{ summary: string; url: string } | undefined>;
+  /** Summary, status + URL if the issue exists and is readable, else undefined. */
+  lookup(key: string): Promise<{ summary: string; url: string; status?: string } | undefined>;
+  /** Move forward on the board only (D11). True if a transition happened. */
+  transitionForward?(key: string, target: string): Promise<boolean>;
+  comment?(key: string, text: string, link?: { text: string; href: string }): Promise<void>;
 }
+
+const STATUS_ORDER = ['to do', 'in progress', 'in review', 'done'];
 
 export class JiraTickets implements Tickets {
   private base: string;
@@ -55,12 +60,40 @@ export class JiraTickets implements Tickets {
   }
 
   async lookup(key: string) {
-    const res = await fetch(`${this.base}/rest/api/3/issue/${encodeURIComponent(key)}?fields=summary`, {
+    const res = await fetch(`${this.base}/rest/api/3/issue/${encodeURIComponent(key)}?fields=summary,status`, {
       headers: { Authorization: this.auth, Accept: 'application/json' },
     });
     if (res.status === 404) return undefined;
     if (!res.ok) throw new Error(`Jira lookup ${key} → ${res.status}`);
     const data = (await res.json()) as any;
-    return { summary: data.fields?.summary ?? '', url: `${this.base}/browse/${key}` };
+    return { summary: data.fields?.summary ?? '', url: `${this.base}/browse/${key}`, status: data.fields?.status?.name };
+  }
+
+  private async api(method: string, route: string, body?: unknown): Promise<any> {
+    const res = await fetch(`${this.base}/rest/api/3${route}`, {
+      method,
+      headers: { Authorization: this.auth, Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`Jira ${method} ${route} → ${res.status}`);
+    return res.status === 204 ? undefined : res.json();
+  }
+
+  async transitionForward(key: string, target: string): Promise<boolean> {
+    const issue = await this.lookup(key);
+    const from = STATUS_ORDER.indexOf((issue?.status ?? '').toLowerCase());
+    const to = STATUS_ORDER.indexOf(target.toLowerCase());
+    if (from === -1 || to === -1 || to <= from) return false;
+    const { transitions } = await this.api('GET', `/issue/${key}/transitions`);
+    const t = (transitions as any[]).find((x) => String(x.to?.name).toLowerCase() === target.toLowerCase());
+    if (!t) return false;
+    await this.api('POST', `/issue/${key}/transitions`, { transition: { id: t.id } });
+    return true;
+  }
+
+  async comment(key: string, text: string, link?: { text: string; href: string }): Promise<void> {
+    const content: unknown[] = [{ type: 'text', text }];
+    if (link) content.push({ type: 'text', text: link.text, marks: [{ type: 'link', attrs: { href: link.href } }] });
+    await this.api('POST', `/issue/${key}/comment`, { body: { type: 'doc', version: 1, content: [{ type: 'paragraph', content }] } });
   }
 }

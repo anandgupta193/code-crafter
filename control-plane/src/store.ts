@@ -8,6 +8,10 @@ export interface Store {
   get(key: string): Promise<string | undefined>;
   set(key: string, value: string, ttlSeconds?: number): Promise<void>;
   del(key: string): Promise<void>;
+  /** Append to a list (queued commands for a stopped container). */
+  push(key: string, value: string): Promise<void>;
+  /** Read and clear a list atomically. */
+  drain(key: string): Promise<string[]>;
 }
 
 export const keys = {
@@ -16,6 +20,7 @@ export const keys = {
   lastActive: (k: string) => `codecrafter:lastActive:${k}`,
   slackSeen: (ts: string) => `codecrafter:slack:seen:${ts}`,
   delivery: (id: string) => `codecrafter:delivery:${id}`,
+  commands: (k: string) => `codecrafter:commands:${k}`,
 };
 
 export async function connectRedis(url: string): Promise<Store> {
@@ -37,6 +42,14 @@ export async function connectRedis(url: string): Promise<Store> {
     },
     async del(key) {
       await client.del(key);
+    },
+    async push(key, value) {
+      await client.rPush(key, value);
+      await client.expire(key, 7 * 24 * 3600);
+    },
+    async drain(key) {
+      const [items] = (await client.multi().lRange(key, 0, -1).del(key).exec()) as unknown as [string[], number];
+      return items ?? [];
     },
   };
 }
@@ -60,5 +73,15 @@ export class MemoryStore implements Store {
   }
   async del(key: string) {
     this.data.delete(key);
+    this.lists.delete(key);
+  }
+  lists = new Map<string, string[]>();
+  async push(key: string, value: string) {
+    this.lists.set(key, [...(this.lists.get(key) ?? []), value]);
+  }
+  async drain(key: string) {
+    const items = this.lists.get(key) ?? [];
+    this.lists.delete(key);
+    return items;
   }
 }

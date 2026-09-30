@@ -117,3 +117,67 @@ ${failures.map((f) => `### ${f.name} — \`${f.command}\`\n\`\`\`\n${f.output}\n
 
 export const CONTINUE_PROMPT =
   'Continue the task from where you stopped. Check `git status` and `git log` first, commit and push any pending work, then carry on.';
+
+// ───────────────────────────── feedback rounds (Phase 1c) ─────────────────────────────
+
+/** Mirrors control-plane/src/router.ts AgentCommand. */
+export interface AgentCommand {
+  type: 'handle_comment' | 'fix_pipeline' | 'pause' | 'resume' | 'stop' | 'approve';
+  jiraKey: string;
+  prNumber?: number;
+  delivery?: string;
+  receivedAt: string;
+  payload: Record<string, unknown>;
+}
+
+export interface FeedbackContext {
+  repo: string; // owner/name
+  prNumber?: number;
+  prBodyFile: string;
+  commands: Record<string, string>;
+}
+
+export function describeBatch(cmds: AgentCommand[]): string {
+  const comments = cmds.filter((c) => c.type === 'handle_comment');
+  const ci = cmds.filter((c) => c.type === 'fix_pipeline');
+  const authors = [...new Set(comments.map((c) => String(c.payload.author ?? '?')))];
+  const parts = [];
+  if (comments.length) parts.push(`${comments.length} comment${comments.length > 1 ? 's' : ''} from ${authors.join(', ')}`);
+  if (ci.length) parts.push(`a CI failure (${ci.map((c) => c.payload.workflow ?? 'workflow').join(', ')})`);
+  return parts.join(' and ');
+}
+
+function replyHow(c: AgentCommand, ctx: FeedbackContext): string {
+  const p = c.payload;
+  if (p.kind === 'review_comment' && p.id !== undefined) {
+    return `reply in its thread: \`gh api repos/${ctx.repo}/pulls/${ctx.prNumber}/comments/${p.id}/replies -f body='…'\``;
+  }
+  return `reply with \`gh pr comment ${ctx.prNumber ?? ''} --body '…'\``;
+}
+
+export function buildFeedbackPrompt(cmds: AgentCommand[], ctx: FeedbackContext): string {
+  const items = cmds.map((c, i) => {
+    const p = c.payload;
+    if (c.type === 'fix_pipeline') {
+      return `### ${i + 1}. CI failed — ${p.workflow ?? 'workflow'} (${p.conclusion})
+Run: ${p.url} on commit \`${String(p.headSha ?? '').slice(0, 7)}\`
+Read the failure with \`gh run view ${p.runId} --log-failed\`. Fix the **code**, never the CI config.`;
+    }
+    if (p.kind === 'control') return `### ${i + 1}. From ${p.author}\n${p.body}`;
+    const where = p.path ? `\`${p.path}${p.line ? `:${p.line}` : ''}\`` : 'the PR conversation';
+    return `### ${i + 1}. ${p.kind === 'review' ? `Review (${p.reviewState})` : 'Comment'} by ${p.author} on ${where}
+${p.diffHunk ? `\`\`\`diff\n${p.diffHunk}\n\`\`\`\n` : ''}> ${String(p.body ?? '').split('\n').join('\n> ')}
+${p.url ? `Link: ${p.url}\n` : ''}When done, ${replyHow(c, ctx)} saying what you changed (or why you didn't).`;
+  });
+
+  return `New feedback arrived on your pull request${ctx.prNumber ? ` #${ctx.prNumber}` : ''}. Handle every item below, staying within the original ticket.
+
+${items.join('\n\n')}
+
+Then:
+1. Commit and push (one commit per item is fine).
+2. Re-run the repo checks and make them pass:
+${Object.entries(ctx.commands).map(([n, c]) => `   - ${n}: \`${c}\``).join('\n') || '   - (none declared)'}
+3. Update the "## Changes" section in \`${ctx.prBodyFile}\` and push it with \`gh pr edit --body-file ${ctx.prBodyFile}\`.
+4. Finish with a short summary of what you changed for each item.`;
+}

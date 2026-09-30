@@ -12,8 +12,12 @@ import { run, sh, tail } from './exec.ts';
 import type { Git } from './git.ts';
 import { log } from './log.ts';
 import {
+  buildFeedbackPrompt,
   buildFixChecksPrompt,
   buildInitialPrompt,
+  describeBatch,
+  type AgentCommand,
+  type FeedbackContext,
   ensureMarkers,
   prBodyTemplate,
   prTitle,
@@ -23,7 +27,7 @@ import type { AgentEvent, AgentRunner } from './runners/types.ts';
 import type { StateStore } from './state.ts';
 import { supervise, type Outcome } from './supervisor.ts';
 
-export type FinalStatus = 'done' | 'paused' | 'needs-human' | 'waiting-approval' | 'killed';
+export type FinalStatus = 'done' | 'paused' | 'paused-manual' | 'needs-human' | 'waiting-approval' | 'killed';
 
 const MAX_FIX_ROUNDS = 2;
 const CHECKPOINT_NOTIFY_EVERY_MS = 3 * 60_000;
@@ -55,6 +59,11 @@ export class TicketAgent {
   /** Set when the agent itself ran `gh pr ready` this round — the only case the draft guardrail reverts. */
   private agentMarkedReady = false;
   private lastUsagePct?: number;
+  private setupNote?: string;
+  private queue: AgentCommand[] = [];
+  private working = false;
+  private paused = false;
+  private roundAbort?: AbortController;
 
   private d: Deps;
 
@@ -68,7 +77,8 @@ export class TicketAgent {
 
   // ───────────────────────────── main workflow ─────────────────────────────
 
-  async run(signal: AbortSignal): Promise<FinalStatus> {
+  /** Container boot: state, Jira, PR, Slack thread, Jira → In Progress, repo setup. Returns false if paused. */
+  private async prepare(): Promise<boolean> {
     const { ctx, store, jira } = this.d;
     const state = await store.load();
 
@@ -76,12 +86,14 @@ export class TicketAgent {
       log.warn(`ticket is paused until ${fmtTime(state.pausedUntil)} (usage limit) — exiting`);
       this.threadTs = ctx.slackThreadTs ?? state.slackThreadTs;
       await this.notify(`⏸ Still paused until ${fmtTime(state.pausedUntil)} (Claude usage limit).`);
-      return 'paused';
+      return false;
     }
+    this.paused = state.status === 'paused' && !state.pausedUntil; // manual pause survives restarts
 
     log.step(`loading ${ctx.jiraKey} from Jira`);
     this.issue = await jira.getIssue(ctx.jiraKey);
     ({ model: this.model, planFirst: this.planFirst } = applyLabels(this.d.repoConfig, this.issue.labels));
+    if (state.planApproved) this.planFirst = false;
     log.ok(`"${this.issue.summary}" [${this.issue.status}] model=${this.model}${this.planFirst ? ' plan-first' : ''}`);
 
     this.pr = await this.d.gh.findPr(ctx.branch).catch(() => undefined);
@@ -91,11 +103,27 @@ export class TicketAgent {
       log.ok('Jira → In Progress');
     }
 
-    const setupNote = await this.bootstrap();
+    this.setupNote = await this.bootstrap();
     await this.prepareBodyFile();
-    const attachments = await jira.downloadAttachments(this.issue, '/workspace/attachments').catch(() => []);
+    return true;
+  }
 
-    let prompt =
+  /**
+   * Boot workflow. If the container was (re)spawned to deliver queued feedback on an existing branch,
+   * skip the full ticket prompt and go straight to the feedback — the session already knows the ticket.
+   */
+  async run(signal: AbortSignal, pending: AgentCommand[] = []): Promise<FinalStatus> {
+    if (!(await this.prepare())) return 'paused';
+    for (const cmd of pending) this.enqueue(cmd);
+    if (this.paused) {
+      await this.notify('⏸ Ticket is paused — comment `/codecrafter resume` on the PR to continue.');
+      return 'paused-manual';
+    }
+    if (!this.d.ctx.branchIsNew && this.queue.length > 0) return this.processQueue(signal);
+
+    const { ctx, jira } = this.d;
+    const attachments = await jira.downloadAttachments(this.issue, '/workspace/attachments').catch(() => []);
+    const prompt =
       buildInitialPrompt({
         issue: this.issue,
         repoUrl: ctx.repoUrl,
@@ -107,49 +135,145 @@ export class TicketAgent {
         attachments,
         commands: this.d.repoConfig.commands,
         existingWork: ctx.branchIsNew ? undefined : await this.existingWork(),
-      }) + (setupNote ? `\n\n## Environment note\n${setupNote}` : '');
+      }) + (this.setupNote ? `\n\n## Environment note\n${this.setupNote}` : '');
+    const status = await this.work(prompt, signal);
+    return this.queue.length ? this.processQueue(signal) : status;
+  }
 
-    let resume = state.sessionId;
-    let fixRounds = 0;
+  // ───────────────────────────── commands (Phase 1c) ─────────────────────────────
 
-    while (true) {
-      const outcome = await this.round(prompt, resume, signal);
-      if (outcome.sessionId) await store.update({ sessionId: outcome.sessionId });
-      await this.afterRound();
+  /** Accept a command from the control plane. `pause` acts immediately; the rest are queued. */
+  enqueue(cmd: AgentCommand): void {
+    this.d.onActivity();
+    if (cmd.type === 'pause') {
+      void this.pauseByHuman(String(cmd.payload.by ?? 'someone'));
+      return;
+    }
+    this.queue.push(cmd);
+    log.info(`queued ${cmd.type}${cmd.payload.author ? ` from ${cmd.payload.author}` : ''} (${this.queue.length} waiting)`);
+  }
 
-      switch (outcome.kind) {
-        case 'killed':
-          return 'killed';
-        case 'usage_limit':
-          return this.pause(outcome.resetsAt);
-        case 'stalled':
-        case 'exhausted':
-        case 'error':
+  get busy(): boolean {
+    return this.working;
+  }
+
+  /** Process everything queued, batching feedback into one round. Called by main whenever the agent is idle. */
+  async processQueue(signal: AbortSignal): Promise<FinalStatus> {
+    let status: FinalStatus = 'done';
+    while (this.queue.length && !signal.aborted) {
+      const batch = this.queue.splice(0);
+      const control = batch.filter((c) => c.type === 'resume' || c.type === 'approve');
+      const feedback = batch.filter((c) => c.type === 'handle_comment' || c.type === 'fix_pipeline');
+
+      for (const c of control) {
+        if (c.type === 'resume' && this.paused) {
+          this.paused = false;
+          await this.d.store.update({ status: 'running', pausedUntil: undefined });
+          await this.notify(`▶ Resumed by ${c.payload.by ?? 'someone'}.`);
+          if (!feedback.length) feedback.push({ ...c, type: 'handle_comment', payload: { author: String(c.payload.by), body: 'Resume the task where you stopped.', kind: 'control' } });
+        }
+        if (c.type === 'approve' && this.planFirst) {
+          this.planFirst = false;
+          await this.d.store.update({ planApproved: true });
+          await this.notify(`✅ Plan approved by ${c.payload.by ?? 'someone'} — implementing.`);
+          feedback.push({ ...c, type: 'handle_comment', payload: { author: String(c.payload.by), body: 'The plan is approved. Implement it now, following your rules.', kind: 'control' } });
+        }
+      }
+      if (this.paused) {
+        this.queue.unshift(...feedback); // hold feedback until resumed
+        return 'paused-manual';
+      }
+
+      const live = await this.dropStalePipelineFailures(feedback);
+      if (!live.length) continue;
+      await this.notify(`💬 Working on ${describeBatch(live)}`);
+      status = await this.work(buildFeedbackPrompt(live, this.feedbackContext()), signal);
+    }
+    return status;
+  }
+
+  private async dropStalePipelineFailures(cmds: AgentCommand[]): Promise<AgentCommand[]> {
+    const head = await this.d.git.head().catch(() => '');
+    return cmds.filter((c) => {
+      if (c.type !== 'fix_pipeline') return true;
+      const stale = Boolean(c.payload.headSha && head && c.payload.headSha !== head);
+      if (stale) log.info(`skipping CI failure for ${String(c.payload.headSha).slice(0, 7)} (HEAD is ${head.slice(0, 7)})`);
+      return !stale;
+    });
+  }
+
+  private feedbackContext(): FeedbackContext {
+    const slug = this.d.ctx.repoUrl.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '');
+    return { repo: slug, prNumber: this.pr?.number, prBodyFile: this.bodyFileAbs, commands: this.d.repoConfig.commands };
+  }
+
+  private async pauseByHuman(by: string): Promise<void> {
+    if (this.paused) return;
+    this.paused = true;
+    await this.d.store.update({ status: 'paused', pausedUntil: undefined });
+    this.roundAbort?.abort(); // stop the current round; work() checkpoints
+    log.warn(`paused by ${by}`);
+    await this.notify(`⏸ Paused by ${by}. Work is checkpointed; comment \`/codecrafter resume\` to continue.`);
+  }
+
+  // ───────────────────────────── the work loop ─────────────────────────────
+
+  /** One unit of work: agent rounds → guardrails → repo checks (+ fix rounds) → done / needs-human. */
+  private async work(firstPrompt: string, signal: AbortSignal): Promise<FinalStatus> {
+    const { ctx, store } = this.d;
+    this.working = true;
+    try {
+      let prompt = firstPrompt;
+      let resume = store.get().sessionId;
+      let fixRounds = 0;
+      await store.update({ status: 'running' });
+
+      while (true) {
+        this.roundAbort = new AbortController();
+        const outcome = await this.round(prompt, resume, AbortSignal.any([signal, this.roundAbort.signal]));
+        if (outcome.sessionId) await store.update({ sessionId: outcome.sessionId });
+        await this.afterRound();
+
+        switch (outcome.kind) {
+          case 'killed':
+            if (this.paused && !signal.aborted) {
+              await this.emergencyCheckpoint();
+              return 'paused-manual';
+            }
+            return 'killed';
+          case 'usage_limit':
+            return this.pause(outcome.resetsAt);
+          case 'stalled':
+          case 'exhausted':
+          case 'error':
+            await this.emergencyCheckpoint();
+            await this.ensurePr();
+            return this.needsHuman(reasonText(outcome), outcome.summary);
+          case 'done':
+            break;
+        }
+
+        if (this.planFirst) {
+          await this.ensurePr();
+          await this.notify(`📋 Plan ready on ${this.prLink()} — comment \`/codecrafter approve\` to implement it (plan-first).`);
+          return 'waiting-approval';
+        }
+
+        const results = await runChecks(this.d.repoConfig.commands, ctx.repoDir);
+        const failed = results.filter((r) => !r.ok);
+        if (failed.length === 0) return this.finish(outcome.summary, results);
+        if (fixRounds >= MAX_FIX_ROUNDS) {
           await this.emergencyCheckpoint();
           await this.ensurePr();
-          return this.needsHuman(reasonText(outcome), outcome.summary);
-        case 'done':
-          break;
+          return this.needsHuman(`checks still failing after ${MAX_FIX_ROUNDS} fix rounds: ${failed.map((f) => f.name).join(', ')}`, checksTable(results));
+        }
+        fixRounds++;
+        log.warn(`checks failed (${failed.map((f) => f.name).join(', ')}) — fix round ${fixRounds}/${MAX_FIX_ROUNDS}`);
+        prompt = buildFixChecksPrompt(failed);
+        resume = store.get().sessionId;
       }
-
-      if (this.planFirst) {
-        await this.ensurePr();
-        await this.notify(`📋 Plan ready on ${this.prLink()} — waiting for \`/codecrafter approve\` (plan-first).`);
-        return 'waiting-approval';
-      }
-
-      const results = await runChecks(this.d.repoConfig.commands, ctx.repoDir);
-      const failed = results.filter((r) => !r.ok);
-      if (failed.length === 0) return this.finish(outcome.summary, results);
-      if (fixRounds >= MAX_FIX_ROUNDS) {
-        await this.emergencyCheckpoint();
-        await this.ensurePr();
-        return this.needsHuman(`checks still failing after ${MAX_FIX_ROUNDS} fix rounds: ${failed.map((f) => f.name).join(', ')}`, checksTable(results));
-      }
-      fixRounds++;
-      log.warn(`checks failed (${failed.map((f) => f.name).join(', ')}) — fix round ${fixRounds}/${MAX_FIX_ROUNDS}`);
-      prompt = buildFixChecksPrompt(failed);
-      resume = this.d.store.get().sessionId;
+    } finally {
+      this.working = false;
     }
   }
 

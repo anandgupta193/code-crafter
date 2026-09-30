@@ -32,6 +32,12 @@ if (( RUNNING >= MAX_CONCURRENT )); then
   exit 1
 fi
 
+# Join the compose network when it exists, so the control plane can route PR feedback to this container.
+NETWORK_ARGS=""
+if docker network inspect codecrafter >/dev/null 2>&1; then
+  NETWORK_ARGS="--network codecrafter -e CONTROL_PLANE_URL=http://control-plane:3000"
+fi
+
 echo "▶ building image code-crafter-agent"
 docker build --quiet -t code-crafter-agent "$ROOT/agent" >/dev/null
 
@@ -47,6 +53,7 @@ docker run -d \
   -e WORKSPACE_BASE_BRANCH="$BASE" \
   -e JIRA_TASK_KEY="$KEY" \
   -e TZ="${TZ:-Asia/Kolkata}" \
+  $NETWORK_ARGS \
   -v "$VOLUME:/home/node" \
   code-crafter-agent >/dev/null
 

@@ -4,19 +4,34 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { JiraTickets, SlackWeb } from './clients.ts';
 import { loadConfig } from './config.ts';
 import { DockerEngine } from './docker.ts';
+import { GitHubRest } from './github.ts';
 import { Intake, type ParsedTrigger } from './intake.ts';
 import { log } from './log.ts';
 import { reapOnce } from './reaper.ts';
+import { EventRouter, httpDeliver, type GithubEvent } from './router.ts';
 import { SlackBridge } from './slack-bridge.ts';
 import { Spawner, type SpawnRequest } from './spawner.ts';
-import { connectRedis } from './store.ts';
+import { connectRedis, keys } from './store.ts';
 
 const cfg = loadConfig();
 const store = await connectRedis(cfg.redisUrl);
 const docker = new DockerEngine();
 const chat = new SlackWeb(cfg.slack.botToken);
 const spawner = new Spawner(cfg, docker, store);
-const intake = new Intake(spawner, chat, new JiraTickets(cfg.jira), cfg.slack.allowedUsers);
+const tickets = new JiraTickets(cfg.jira);
+const intake = new Intake(spawner, chat, tickets, cfg.slack.allowedUsers);
+const router = new EventRouter({
+  services: cfg.services,
+  allowedUsers: cfg.githubAllowedUsers,
+  slackChannel: cfg.slack.channel,
+  github: new GitHubRest(cfg.githubToken),
+  tickets,
+  chat,
+  store,
+  docker,
+  spawner,
+  deliver: (container, cmd) => httpDeliver(container, cmd, cfg.internalToken),
+});
 
 const bridge = cfg.slack.appToken
   ? new SlackBridge({
@@ -62,10 +77,14 @@ const server = createServer(async (req, res) => {
       return send(res, 200, await intake.handle(body));
     }
     if (req.method === 'POST' && url.pathname === '/api/github-event') {
-      // Phase 0: prove GitHub → smee → n8n → control plane. Phase 1c routes these to /command.
-      const e = await readJson(req);
-      log.info(`github ${e.event}${e.action ? `.${e.action}` : ''} ${e.repo ?? ''} ${e.branch ? `branch=${e.branch}` : ''}${e.routable ? ` → ${e.container}` : ' (not routable)'} by ${e.sender ?? '?'}`);
-      return send(res, 202, { received: true, routable: e.routable });
+      const e = (await readJson(req)) as GithubEvent;
+      return send(res, 202, { result: await router.handle(e) });
+    }
+    const cmdMatch = url.pathname.match(/^\/api\/tickets\/([A-Z][A-Z0-9_]+-\d+)\/commands$/);
+    if (req.method === 'GET' && cmdMatch) {
+      // The agent container drains commands that were queued while it was stopped.
+      const items = await store.drain(keys.commands(cmdMatch[1]));
+      return send(res, 200, items.map((s) => JSON.parse(s)));
     }
     if (req.method === 'GET' && url.pathname === '/tickets') {
       return send(res, 200, await docker.listTicketContainers());

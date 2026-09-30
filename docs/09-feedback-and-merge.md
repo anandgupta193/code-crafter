@@ -3,6 +3,14 @@
 ## Purpose
 Close the loop: review comments and CI failures become new agent rounds, and a merge becomes Jira "Done" plus a Slack ✅.
 
+## As built (Phase 1c)
+- **n8n parses, the control plane routes** (`control-plane/src/router.ts`). The control plane knows which containers are alive and can respawn them, so routing lives there instead of in n8n.
+- **Verify, don't trust:** there's no webhook signature check yet. Instead, every actionable event is re-checked against the GitHub API with the bot token: is the PR really merged, does the comment exist and was it written by the sender, is the failed run on the current HEAD. Deliveries are deduped in Redis.
+- **Only allow-listed humans** (`GITHUB_ALLOWED_USERS`) can drive the agent; bots and strangers are ignored (D17).
+- **Delivery:** `POST code-crafter-<key>:8080/command` (with the internal token). If the container isn't running, the command goes to Redis `codecrafter:commands:<key>` and the ticket is respawned. On boot the container drains the queue and skips the full ticket prompt (the session already knows the ticket).
+- **In the container:** commands queue up and are batched into one feedback round (same session) that runs the same checks, guardrails and "done" flow as the first run. `pause` interrupts immediately (checkpoint) and survives restarts; `resume` and `approve` continue; `stop` shuts the container down.
+- **Not yet:** comment scoring/dedupe against later commits (below), CodeRabbit handling, auto-resume after a usage-limit pause.
+
 ## Review comments → `handle_comment`
 Prompt carries: comment body, author, file, line, `diff_hunk`, the full review thread, and whether it comes from a human or a review bot.
 

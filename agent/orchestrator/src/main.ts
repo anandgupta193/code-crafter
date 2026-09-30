@@ -12,8 +12,11 @@ import { log } from './log.ts';
 import { createRunner } from './runners/index.ts';
 import { StateStore } from './state.ts';
 import { TicketAgent, type FinalStatus } from './ticket-agent.ts';
+import type { AgentCommand } from './prompt.ts';
 
 const PORT = Number(process.env.PORT ?? 8080);
+const INTERNAL_TOKEN = process.env.INTERNAL_API_TOKEN;
+const CONTROL_PLANE_URL = process.env.CONTROL_PLANE_URL;
 const RULES_FILE = process.env.CC_RULES_FILE ?? '/opt/codecrafter/rules/code-crafter.md';
 
 const ctx = loadTicketContext();
@@ -58,8 +61,27 @@ const server = createServer((req, res) => {
   if (req.url === '/healthz') return json(agent.spawned || finalStatus ? 200 : 503, { ok: agent.spawned || !!finalStatus, phase });
   if (req.url === '/state') return json(200, { key: ctx.jiraKey, branch: ctx.branch, phase, finalStatus, state: store.get() });
   if (req.url === '/command' && req.method === 'POST') {
-    // Phase 1c: queue review comments / CI failures here.
-    return json(501, { error: 'commands arrive in Phase 1c' });
+    if (INTERNAL_TOKEN && req.headers['x-codecrafter-token'] !== INTERNAL_TOKEN) return json(401, { error: 'bad token' });
+    let raw = '';
+    req.on('data', (d) => (raw += d));
+    req.on('end', () => {
+      let cmd: AgentCommand;
+      try {
+        cmd = JSON.parse(raw);
+      } catch {
+        return json(400, { error: 'invalid JSON' });
+      }
+      if (cmd.jiraKey !== ctx.jiraKey) return json(409, { error: `this container serves ${ctx.jiraKey}` });
+      if (cmd.type === 'stop') {
+        json(202, { accepted: 'stop' });
+        void shutdown(`stopped by ${cmd.payload?.by ?? 'command'}`);
+        return;
+      }
+      agent.enqueue(cmd);
+      json(202, { accepted: cmd.type, busy: agent.busy });
+      void drainQueue();
+    });
+    return;
   }
   json(404, { error: 'not found' });
 });
@@ -99,7 +121,7 @@ server.listen(PORT, () => {
   setTimeout(() => {
     phase = 'working';
     touch();
-    workflow = agent.run(abort.signal);
+    workflow = fetchPendingCommands().then((pending) => agent.run(abort.signal, pending));
     workflow
       .then((status) => {
         finalStatus = status;
@@ -107,6 +129,7 @@ server.listen(PORT, () => {
         phase = 'idle';
         log.ok(`workflow finished: ${status}. Idle — exits after ${timers.idleTtlMs / 60_000} min without events.`);
         if (status === 'paused') void shutdown('paused (usage limit)');
+        else void drainQueue();
       })
       .catch(async (err) => {
         log.error(`workflow crashed: ${err instanceof Error ? err.stack : String(err)}`);
@@ -117,3 +140,40 @@ server.listen(PORT, () => {
       });
   }, 2_000);
 });
+
+/** Commands queued by the control plane while this container was stopped. */
+async function fetchPendingCommands(): Promise<AgentCommand[]> {
+  if (!CONTROL_PLANE_URL || !INTERNAL_TOKEN) return [];
+  try {
+    const res = await fetch(`${CONTROL_PLANE_URL}/api/tickets/${ctx.jiraKey}/commands`, {
+      headers: { 'x-codecrafter-token': INTERNAL_TOKEN },
+      signal: AbortSignal.timeout(5000),
+    });
+    const cmds = res.ok ? ((await res.json()) as AgentCommand[]) : [];
+    if (cmds.length) log.info(`picked up ${cmds.length} queued command(s) from the control plane`);
+    return cmds;
+  } catch (err) {
+    log.warn(`could not fetch queued commands: ${String(err)}`);
+    return [];
+  }
+}
+
+/** When idle, process queued commands (one at a time; failures never pre-empt running work). */
+let draining = false;
+async function drainQueue(): Promise<void> {
+  if (draining || phase !== 'idle' || agent.busy) return;
+  draining = true;
+  try {
+    phase = 'working';
+    finalStatus = await agent.processQueue(abort.signal);
+    if (phase === 'working') phase = 'idle';
+    touch();
+    if (finalStatus === 'paused') void shutdown('paused (usage limit)');
+  } catch (err) {
+    log.error(`command processing crashed: ${err instanceof Error ? err.stack : String(err)}`);
+    await agent.emergencyCheckpoint();
+    phase = 'idle';
+  } finally {
+    draining = false;
+  }
+}
