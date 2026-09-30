@@ -65,5 +65,6 @@ docker kill code-crafter-scrum-2  # kill test: re-run the script and it resumes
 | 11 | [Planner](docs/11-planner.md) | *(Phase 3)* Multi-repo planning |
 | 12 | [Security](docs/12-security.md) | Secrets, sandboxing, token scopes |
 | 13 | [Roadmap](docs/13-roadmap.md) | Phases, decisions, open questions |
+| 16 | [Plan: 1c + 1d](docs/16-plan-1c-1d.md) | Finishing the feedback loop and hardening |
 | 14 | [Target: expense-manager](docs/14-target-repo-expense-manager.md) | First target repo and its pre-flight changes |
 | 15 | [Bot account setup](docs/15-bot-account-setup.md) | Creating the GitHub bot, its token, branch protection |
