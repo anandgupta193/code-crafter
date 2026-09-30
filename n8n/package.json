@@ -1,0 +1,9 @@
+{
+  "name": "code-crafter-n8n",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test parsers/*.test.js",
+    "build": "node build.mjs"
+  }
+}

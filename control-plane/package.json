@@ -1,0 +1,24 @@
+{
+  "name": "code-crafter-control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Long-lived manager: Slack bridge, spawn API, per-ticket locks and the container reaper.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "redis": "^5.8.2",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

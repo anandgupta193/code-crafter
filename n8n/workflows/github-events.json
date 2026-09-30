@@ -1,0 +1,92 @@
+{
+  "id": "cc0githubevents1",
+  "name": "code-crafter · github events",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "7d1c3f2a-5b1e-4c8e-9a51-2f6a1c0de002-node",
+      "name": "GitHub webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "7d1c3f2a-5b1e-4c8e-9a51-2f6a1c0de002"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Summarises a GitHub webhook delivery and routes it by branch convention (docs/03-event-bus-n8n.md).\n// Phase 0 only logs the result in the control plane; Phase 1c turns these into /command calls.\n\nfunction summarizeGithubEvent(headers, body) {\n  const h = headers || {};\n  const b = body || {};\n  const event = h['x-github-event'] || 'unknown';\n  const delivery = h['x-github-delivery'];\n  const pr = b.pull_request || (b.issue && b.issue.pull_request ? b.issue : undefined);\n  const branch =\n    (b.pull_request && b.pull_request.head && b.pull_request.head.ref) ||\n    (b.workflow_run && b.workflow_run.head_branch) ||\n    (b.check_run && b.check_run.check_suite && b.check_run.check_suite.head_branch) ||\n    undefined;\n\n  const PREFIX = 'CODE-CRAFTER-';\n  const jiraKey = branch && branch.startsWith(PREFIX) ? branch.slice(PREFIX.length) : undefined;\n\n  return {\n    event: event,\n    action: b.action,\n    delivery: delivery,\n    repo: b.repository && b.repository.full_name,\n    sender: b.sender && b.sender.login,\n    prNumber: pr && pr.number,\n    branch: branch,\n    jiraKey: jiraKey,\n    container: jiraKey ? 'code-crafter-' + jiraKey.toLowerCase() : undefined,\n    routable: Boolean(jiraKey),\n  };\n}\n\nreturn { json: summarizeGithubEvent($json.headers, $json.body) };"
+      },
+      "id": "cc-summarize-github",
+      "name": "Summarize event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CONTROL_PLANE_URL }}/api/github-event",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-codecrafter-token",
+              "value": "={{ $env.INTERNAL_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "cc-github-event",
+      "name": "Event → control plane",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "GitHub webhook": {
+      "main": [
+        [
+          {
+            "node": "Summarize event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize event": {
+      "main": [
+        [
+          {
+            "node": "Event → control plane",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

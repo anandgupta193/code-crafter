@@ -58,6 +58,7 @@ code-crafter/
 | D20 | Visibility: Slack thread = milestones only; PR comments = plan/questions/done/review replies; `docker logs` = readable progress; raw transcript on the volume; Jira = status + PR link only | 2026-09-30 |
 | D21 | "No behaviour change" is verified by **human review** for now (no tests in the repo — the biggest trust gap; revisit with a Vitest ticket) | 2026-09-30 |
 | D22 | n8n: **git is the source of truth** (`n8n/workflows/*.json`, tested `n8n/parsers/*.js`); reuse the existing `n8n_data` volume in compose | 2026-09-30 |
+| D24 | Slack trigger: full format or shorthand `SCRUM-2`; service defaults when only one is registered; `Environment` ignored | 2026-09-30 |
 | D23 | Default model **haiku** (pipeline testing). Jira label `model:sonnet` / `model:opus` overrides it. Pro token verified for sonnet-5-5 and opus-5-5 | 2026-09-30 |
 
 ## Phase 1a acceptance checklist (agreed 2026-09-30)
@@ -75,5 +76,13 @@ code-crafter/
 
 Out of scope for 1a: Slack trigger, webhooks, review-comment handling, auto-resume scheduler, Cursor.
 
+## Phase 0/1b result (2026-09-30)
+- The compose stack is up (n8n 2.41.3 reusing `n8n_data`, Redis, smee, control plane). The Slack bridge is connected over Socket Mode.
+- GitHub → smee → n8n `github-events` → control plane works (logged and routed by branch → container; routing to `/command` comes in 1c).
+- Slack → bridge → n8n `slack-trigger` → control-plane intake → `/spawn` works; the allow-list is enforced at the bridge and again at intake.
+- The trigger accepts the full 4-line format or the shorthand `SCRUM-2`; `Environment` is parsed and ignored (D24).
+- n8n 2.x can't activate on import in regular mode: import, then `publish:workflow`, then restart.
+- Known gap for 1c: `issue_comment` events carry no branch, so the router must look the PR up.
+
 ## Open questions
-1. **Environment field** in the Slack trigger: ignore for the MVP (proposal: yes).
+- None right now. The Environment field is resolved by D24.

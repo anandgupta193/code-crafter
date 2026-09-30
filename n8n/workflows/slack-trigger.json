@@ -1,0 +1,92 @@
+{
+  "id": "cc0slacktrigger1",
+  "name": "code-crafter · slack trigger",
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-trigger",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "7d1c3f2a-5b1e-4c8e-9a51-2f6a1c0de001-node",
+      "name": "Slack message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "7d1c3f2a-5b1e-4c8e-9a51-2f6a1c0de001"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parses a Slack trigger message into a spawn request (docs/02-trigger-intake.md).\n// Plain JS on purpose: unit-tested with node:test, and inlined into the n8n Code node by n8n/build.mjs.\n//\n// Accepted forms (Slack wraps links as <url> or <url|label> and bold as *text*):\n//   *Jira ticket url* https://code-crafter.atlassian.net/browse/SCRUM-2\n//   *Service* expense-manager\n//   *Base branch* main\n//   *Environment* qa            (accepted, ignored for now)\n// or the shorthand: \"SCRUM-2\", \"work on SCRUM-2\", or just the Jira URL.\n\nfunction parseSlackTrigger(rawText) {\n  const text = String(rawText || '')\n    .replace(/<([^>|]+)\\|[^>]*>/g, '$1') // <url|label> → url\n    .replace(/<([^>]+)>/g, '$1') // <url> → url\n    .replace(/\\*/g, '') // *bold*\n    .trim();\n\n  if (!text) return { ok: false, reason: 'empty message' };\n\n  const field = (label) => {\n    const re = new RegExp('^\\\\s*' + label + '\\\\s*[:\\\\-]?\\\\s*(\\\\S.*)$', 'im');\n    const m = text.match(re);\n    return m ? m[1].trim() : undefined;\n  };\n\n  const urlField = field('jira(?:\\\\s+ticket)?(?:\\\\s+url)?');\n  const keySource = urlField || text;\n  const keyMatch =\n    keySource.match(/\\/browse\\/([A-Z][A-Z0-9_]+-\\d+)/) || keySource.match(/\\b([A-Z][A-Z0-9_]+-\\d+)\\b/);\n  if (!keyMatch) {\n    return {\n      ok: false,\n      reason:\n        'no Jira ticket found. Post e.g. `SCRUM-2`, or:\\n*Jira ticket url* https://…/browse/SCRUM-2\\n*Service* expense-manager\\n*Base branch* main',\n    };\n  }\n\n  const jiraUrlMatch = keySource.match(/https?:\\/\\/[^\\s]+\\/browse\\/[A-Z][A-Z0-9_]+-\\d+/);\n  const service = field('service');\n  const baseBranch = field('base\\\\s+branch');\n  const environment = field('env(?:ironment)?');\n\n  const badName = (v) => v !== undefined && !/^[A-Za-z0-9._\\/-]+$/.test(v);\n  if (badName(service)) return { ok: false, reason: 'service name looks invalid: ' + service };\n  if (badName(baseBranch)) return { ok: false, reason: 'base branch looks invalid: ' + baseBranch };\n\n  return {\n    ok: true,\n    jiraKey: keyMatch[1],\n    jiraUrl: jiraUrlMatch ? jiraUrlMatch[0] : undefined,\n    service: service,\n    baseBranch: baseBranch,\n    environment: environment,\n  };\n}\n\nconst b = $json.body || {};\nreturn { json: { ...parseSlackTrigger(b.text), slack: { channel: b.channel, ts: b.ts, user: b.user } } };"
+      },
+      "id": "cc-parse-slack",
+      "name": "Parse trigger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CONTROL_PLANE_URL }}/api/intake/slack",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-codecrafter-token",
+              "value": "={{ $env.INTERNAL_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "cc-intake-slack",
+      "name": "Intake → control plane",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Slack message": {
+      "main": [
+        [
+          {
+            "node": "Parse trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse trigger": {
+      "main": [
+        [
+          {
+            "node": "Intake → control plane",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

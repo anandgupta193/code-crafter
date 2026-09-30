@@ -1,0 +1,70 @@
+# code-crafter long-lived services (Phase 0/1b). Ticket containers are started on demand by the control plane.
+#   docker compose build agent      # build the per-ticket agent image
+#   docker compose up -d            # n8n, redis, smee, control-plane
+#   scripts/n8n-import.sh           # load + publish the workflows from n8n/workflows
+name: code-crafter
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.41.3
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      TZ: Asia/Kolkata
+      GENERIC_TIMEZONE: Asia/Kolkata
+      CONTROL_PLANE_URL: http://control-plane:3000
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
+    restart: unless-stopped
+
+  # GitHub webhooks → smee.io → here → n8n (docs/03-event-bus-n8n.md)
+  smee:
+    image: node:24-alpine
+    command: ["sh", "-c", "npx --yes smee-client@2 --url \"$$SMEE_URL\" --target http://n8n:5678/webhook/github"]
+    environment:
+      SMEE_URL: ${SMEE_URL}
+    depends_on: [n8n]
+    restart: unless-stopped
+
+  control-plane:
+    build: ./control-plane
+    env_file: .env
+    environment:
+      TZ: Asia/Kolkata
+      REDIS_URL: redis://redis:6379
+      N8N_WEBHOOK_BASE: http://n8n:5678/webhook
+      SERVICES_FILE: /config/services.yaml
+      AGENT_NETWORK: codecrafter
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/config:ro
+    depends_on: [redis, n8n]
+    restart: unless-stopped
+
+  # Not a running service: `docker compose build agent` builds the image the control plane spawns.
+  agent:
+    build: ./agent
+    image: code-crafter-agent
+    profiles: ["build-only"]
+
+volumes:
+  redis_data:
+  n8n_data:
+    external: true # the volume from the original standalone n8n container (D22)
+
+networks:
+  default:
+    name: codecrafter
