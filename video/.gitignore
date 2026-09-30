@@ -1,3 +1,3 @@
 node_modules/
 out/
-public/audio/*.aiff
+public/audio/
