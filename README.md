@@ -16,8 +16,9 @@
 ![Slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)
 ![Jira](https://img.shields.io/badge/Jira-0052CC?style=for-the-badge&logo=jira&logoColor=white)
 ![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)
+![MIT License](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)
 
-`🧪 working prototype` · `💸 free tiers + one Claude subscription` · `🏠 fully self-hosted` · `🔓 open source`
+`🧪 working prototype` · `💸 free tiers + one Claude subscription` · `🏠 fully self-hosted` · `🔓 open source (MIT)`
 
 </div>
 
@@ -351,5 +352,7 @@ _First customer: [expense-manager](https://github.com/anandgupta193/expense-mana
 ### ⭐ If this saved you an afternoon, or just made you think "wait, we could do this", **star the repo** ⭐
 
 _Stars tell me which phase to build next. Issues and ideas are very welcome._ 🙌
+
+📄 [MIT licensed](LICENSE)
 
 </div>
