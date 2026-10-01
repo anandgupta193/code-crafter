@@ -1,6 +1,6 @@
 # code-crafter long-lived services (Phase 0/1b). Ticket containers are started on demand by the control plane.
 #   docker compose build agent      # build the per-ticket agent image
-#   docker compose up -d            # n8n, redis, smee, control-plane
+#   docker compose up -d            # n8n, redis, smee, neo4j, control-plane
 #   scripts/n8n-import.sh           # load + publish the workflows from n8n/workflows
 name: code-crafter
 
@@ -42,6 +42,20 @@ services:
     depends_on: [n8n]
     restart: unless-stopped
 
+  # Architecture graph (docs/10-context-graph.md, D34). Browser UI: http://localhost:7474 (user neo4j).
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+
   control-plane:
     build: ./control-plane
     env_file: .env
@@ -52,12 +66,14 @@ services:
       SERVICES_FILE: /config/services.yaml
       AGENT_NETWORK: codecrafter
       CONTROL_PLANE_URL: http://control-plane:3000 # forwarded to agent containers
+      NEO4J_URL: bolt://neo4j:7687
+      OLLAMA_URL: http://host.docker.internal:11434 # Ollama runs natively on the Mac (D35)
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config:/config:ro
-    depends_on: [redis, n8n]
+    depends_on: [redis, n8n, neo4j]
     restart: unless-stopped
 
   # Not a running service: `docker compose build agent` builds the image the control plane spawns.
@@ -68,6 +84,7 @@ services:
 
 volumes:
   redis_data:
+  neo4j_data:
   n8n_data:
     external: true # the volume from the original standalone n8n container (D22)
 
