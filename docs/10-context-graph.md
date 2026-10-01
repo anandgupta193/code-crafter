@@ -127,7 +127,7 @@ On failure (no service node, Neo4j or Ollama unreachable, timeout above 10 s), l
    - one ticket where the agent should query the graph mid-task;
    - merge a PR that edits `context.yaml` and watch the graph update.
 
-## Done when
+## Done when *(verified live 2026-10-01: items 1–4, 6 and 7. SCRUM-11 / PR #14 added `GET /api/health` and updated `context.yaml` itself; the merge re-ingested the graph 6 s later. Item 5 is covered by unit tests only)*
 1. `POST /api/context/reindex/expense-manager` fills Neo4j. In the Neo4j browser, `MATCH (s:Service)-[r]->(n) RETURN s,r,n` shows `/api/chat`, five external calls, two DBs and the libraries.
 2. A broken manifest is rejected with a message in the ops channel, and the graph is unchanged.
 3. Merging a PR that edits `context.yaml` or a doc updates the graph within a minute; only changed chunks are re-embedded.
