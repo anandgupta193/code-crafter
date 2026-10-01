@@ -1,10 +1,12 @@
 // Readable, secret-redacting logger. Everything printed here ends up in `docker logs`.
 
 const SECRET_NAME = /TOKEN|SECRET|KEY|PASSWORD/i;
+// Names that match SECRET_NAME but hold public values (the ticket key would hide "SCRUM-10" in every line).
+const NOT_SECRET = new Set(['JIRA_TASK_KEY']);
 
 function collectSecrets(env: NodeJS.ProcessEnv): string[] {
   return Object.entries(env)
-    .filter(([name, value]) => SECRET_NAME.test(name) && typeof value === 'string' && value.length >= 8)
+    .filter(([name, value]) => SECRET_NAME.test(name) && !NOT_SECRET.has(name) && typeof value === 'string' && value.length >= 8)
     .map(([, value]) => value as string)
     .sort((a, b) => b.length - a.length);
 }
