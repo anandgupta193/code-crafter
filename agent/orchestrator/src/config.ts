@@ -13,6 +13,8 @@ export interface TicketContext {
   stateDir: string;
   harnessDir: string;
   slackThreadTs?: string;
+  /** Written by the entrypoint when the context graph is configured (docs/10). */
+  mcpConfig?: string;
 }
 
 export interface Timers {
@@ -59,6 +61,7 @@ export function loadTicketContext(): TicketContext {
     stateDir,
     harnessDir: process.env.HARNESS_DIR ?? '/workspace/harness',
     slackThreadTs: process.env.SLACK_THREAD_TS || undefined,
+    mcpConfig: process.env.MCP_CONFIG || undefined,
   };
 }
 

@@ -41,5 +41,20 @@ HARNESS_DIR="${HARNESS_DIR:-/workspace/harness}"
 rm -rf "$HARNESS_DIR" && mkdir -p "$HARNESS_DIR"
 cp /opt/codecrafter/rules/*.md "$HARNESS_DIR/"
 
+# 5. Live graph access (docs/10-context-graph.md): the Neo4j MCP server in read-only mode, passed to the agent
+#    with --mcp-config so nothing lands in the repo. Skipped when the context graph isn't configured.
+if [ -n "${NEO4J_PASSWORD:-}" ]; then
+  MCP_CONFIG="$HARNESS_DIR/mcp.json"
+  jq -n --arg url "${NEO4J_URL:-bolt://neo4j:7687}" --arg pw "$NEO4J_PASSWORD" '{
+    mcpServers: { neo4j: {
+      command: "mcp-neo4j-cypher",
+      args: ["--transport", "stdio", "--read-only"],
+      env: { NEO4J_URI: $url, NEO4J_USERNAME: "neo4j", NEO4J_PASSWORD: $pw, NEO4J_DATABASE: "neo4j", NEO4J_READ_ONLY: "true" }
+    } }
+  }' > "$MCP_CONFIG"
+  chmod 600 "$MCP_CONFIG"
+  export MCP_CONFIG
+fi
+
 export BRANCH_NAME="$BRANCH" BRANCH_IS_NEW REPO_DIR HARNESS_DIR
 exec node /opt/codecrafter/orchestrator/src/main.ts

@@ -5,6 +5,8 @@ import path from 'node:path';
 import type { RepoConfig, TicketContext, Timers } from './config.ts';
 import { applyLabels } from './config.ts';
 import { checksTable, runChecks, type CheckResult } from './checks.ts';
+import { renderBriefing } from './context/briefing.ts';
+import type { ContextClient } from './context/context-client.ts';
 import type { GitHub, PullRequest } from './clients/github.ts';
 import type { JiraClient, JiraIssue } from './clients/jira.ts';
 import type { SlackClient } from './clients/slack.ts';
@@ -45,6 +47,8 @@ export interface Deps {
   runner: AgentRunner;
   rules: string;
   onActivity: () => void;
+  /** Context graph briefing (docs/10, D39); undefined when the graph isn't configured. */
+  context?: ContextClient;
 }
 
 export class TicketAgent {
@@ -72,6 +76,18 @@ export class TicketAgent {
 
   constructor(deps: Deps) {
     this.d = deps;
+  }
+
+  /** Rebuilt on every start/resume so it reflects the latest graph; never blocks the ticket (D39). */
+  private async architectureContext(): Promise<string | undefined> {
+    if (!this.d.context) return undefined;
+    const r = await this.d.context.build(this.d.ctx.repoUrl, { summary: this.issue.summary, description: this.issue.description });
+    if (!r.ok) {
+      log.warn(`no architecture context: ${r.reason}`);
+      return undefined;
+    }
+    log.ok(`architecture context: ${r.summary}`);
+    return renderBriefing(r.briefing);
   }
 
   private get bodyFileAbs(): string {
@@ -138,6 +154,7 @@ export class TicketAgent {
         attachments,
         commands: this.d.repoConfig.commands,
         existingWork: ctx.branchIsNew ? undefined : await this.existingWork(),
+        architectureContext: await this.architectureContext(),
       }) + (this.setupNote ? `\n\n## Environment note\n${this.setupNote}` : '');
     const status = await this.work(prompt, signal);
     return this.queue.length ? this.processQueue(signal) : status;
@@ -315,6 +332,7 @@ export class TicketAgent {
           model: this.model,
           resumeSessionId: resumeId,
           systemPromptAppend: this.d.rules,
+          mcpConfig: this.d.ctx.mcpConfig,
           transcriptFile: path.join(this.d.ctx.stateDir, 'transcript.jsonl'),
         },
         {

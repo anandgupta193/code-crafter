@@ -16,6 +16,12 @@ ARG CLAUDE_CODE_VERSION=2.1.284
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} && npm cache clean --force
 ENV DISABLE_AUTOUPDATER=1
 
+# Neo4j MCP server: live, read-only graph queries mid-task (docs/10-context-graph.md). Installed at build time
+# with uv into /opt so tickets never download it; Python comes from the base image (bookworm, 3.11).
+COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /uvx /usr/local/bin/
+ENV UV_TOOL_DIR=/opt/uv-tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_PREFERENCE=only-system
+RUN uv tool install mcp-neo4j-cypher==0.6.0 && rm -rf /root/.cache/uv
+
 # Orchestrator (TypeScript run directly by Node 24's type stripping — no build step).
 WORKDIR /opt/codecrafter/orchestrator
 COPY orchestrator/package.json orchestrator/package-lock.json ./

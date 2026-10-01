@@ -70,6 +70,25 @@ function flatten(v: unknown): string | string[] {
 
 const camel = (k: string) => k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 
+const ITEM_KEYS: Record<string, Set<string> | undefined> = {
+  exposes: new Set(['method', 'path', 'handler', 'auth', 'response', 'description', 'called_by']),
+  calls: new Set(['service', 'external', 'purpose', 'via', 'env']),
+  libraries: new Set(['name', 'why']),
+  databases: undefined, // free-form: extra fields become details
+};
+
+/** Unknown keys, and keys with no value — the signature of an unquoted comma inside a `{ … }` flow mapping. */
+function checkItems(doc: Record<string, unknown>, errors: string[]) {
+  for (const [section, allowed] of Object.entries(ITEM_KEYS)) {
+    items(doc[section]).forEach((item, i) => {
+      for (const [k, v] of Object.entries(item)) {
+        if (v === null) errors.push(`${section}[${i}]: "${k}" has no value (quote values that contain commas)`);
+        else if (allowed && !allowed.has(k)) errors.push(`${section}[${i}]: unknown key "${k}"`);
+      }
+    });
+  }
+}
+
 export function parseManifest(text: string, registered: Service): ParseResult {
   let raw: unknown;
   try {
@@ -82,6 +101,7 @@ export function parseManifest(text: string, registered: Service): ParseResult {
   const errors: string[] = [];
 
   for (const key of Object.keys(doc)) if (!KNOWN_KEYS.has(key)) errors.push(`unknown key "${key}"`);
+  checkItems(doc, errors);
 
   const service = str(doc.service);
   if (!service) errors.push('service is required');

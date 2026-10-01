@@ -85,6 +85,16 @@ describe('parseManifest', () => {
     ]);
   });
 
+  it('catches an unquoted comma inside a { … } item, and unknown item keys', () => {
+    const r = parseManifest(
+      `service: expense-manager\nrepo: ${em.repo}\nlibraries:\n  - { name: adk, why: runtime (tools, sessions) }\ncalls:\n  - { service: x, porpose: typo }`,
+      em,
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.errors).toEqual(['calls[0]: unknown key "porpose"', 'libraries[0]: "sessions)" has no value (quote values that contain commas)']);
+  });
+
   it('rejects YAML that does not parse or is not a mapping', () => {
     expect(parseManifest('service: [unclosed', em)).toMatchObject({ ok: false });
     expect(parseManifest('- a list', em)).toMatchObject({ ok: false, errors: ['manifest must be a YAML mapping'] });

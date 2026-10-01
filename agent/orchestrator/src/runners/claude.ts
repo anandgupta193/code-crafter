@@ -24,6 +24,7 @@ export class ClaudeCodeRunner implements AgentRunner {
       '--permission-mode', 'bypassPermissions',
     ];
     if (opts.systemPromptAppend) args.push('--append-system-prompt', opts.systemPromptAppend);
+    if (opts.mcpConfig) args.push('--mcp-config', opts.mcpConfig);
     if (opts.resumeSessionId) args.push('--resume', opts.resumeSessionId);
     return args;
   }

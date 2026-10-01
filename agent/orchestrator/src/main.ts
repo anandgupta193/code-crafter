@@ -7,6 +7,8 @@ import { loadRepoConfig, loadTicketContext, loadTimers } from './config.ts';
 import { GitHub } from './clients/github.ts';
 import { JiraClient } from './clients/jira.ts';
 import { SlackClient } from './clients/slack.ts';
+import { ContextClient } from './context/context-client.ts';
+import { Neo4jReader, ollamaEmbed } from './context/neo4j-reader.ts';
 import { Git } from './git.ts';
 import { log } from './log.ts';
 import { createRunner } from './runners/index.ts';
@@ -50,6 +52,12 @@ const agent = new TicketAgent({
   runner: createRunner(repoConfig.agent.provider),
   rules: await readFile(RULES_FILE, 'utf8'),
   onActivity: touch,
+  context: process.env.NEO4J_PASSWORD
+    ? new ContextClient(
+        new Neo4jReader(process.env.NEO4J_URL ?? 'bolt://neo4j:7687', process.env.NEO4J_PASSWORD),
+        ollamaEmbed(process.env.OLLAMA_URL ?? 'http://host.docker.internal:11434'),
+      )
+    : undefined,
 });
 
 // ── HTTP: /healthz (503 until the agent has actually spawned), /state, /command ──

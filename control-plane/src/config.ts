@@ -73,6 +73,9 @@ export function loadConfig(): Config {
     controlPlaneUrl: process.env.CONTROL_PLANE_URL ?? 'http://control-plane:3000',
     services: parseServices(readFileSync(process.env.SERVICES_FILE ?? '/config/services.yaml', 'utf8')),
     agentEnvNames: [
+      'NEO4J_URL',
+      'NEO4J_PASSWORD',
+      'OLLAMA_URL',
       'GITHUB_TOKEN',
       'JIRA_BASE_URL',
       'JIRA_EMAIL',

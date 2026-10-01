@@ -47,6 +47,7 @@ services:
     image: neo4j:5.26-community
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]' # the MCP server's get_neo4j_schema tool needs APOC
       NEO4J_server_memory_heap_max__size: 512m
       NEO4J_server_memory_pagecache_size: 256m
     ports:

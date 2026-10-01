@@ -9,6 +9,8 @@ export interface RunOptions {
   model: string;
   resumeSessionId?: string;
   systemPromptAppend?: string;
+  /** MCP server config file outside the repo (context graph, docs/10). */
+  mcpConfig?: string;
   env?: NodeJS.ProcessEnv;
   /** Append every raw output line here (debug transcript on the ticket volume). */
   transcriptFile?: string;
