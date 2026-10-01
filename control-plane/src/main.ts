@@ -34,6 +34,11 @@ const router = new EventRouter({
   docker,
   spawner,
   deliver: (container, cmd) => httpDeliver(container, cmd, cfg.internalToken),
+  // PR stats: refresh now, and again in 60 s because GitHub search indexes merges with a small delay.
+  onPrChange: () => {
+    prStats.invalidate();
+    setTimeout(() => prStats.invalidate(), 60_000).unref();
+  },
 });
 
 const bridge = cfg.slack.appToken

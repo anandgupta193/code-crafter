@@ -77,6 +77,8 @@ export interface RouterDeps {
   docker: DockerApi;
   spawner: Spawner;
   deliver: Deliver;
+  /** Called when a code-crafter PR opens, closes, merges or reopens (e.g. to refresh PR stats). */
+  onPrChange?: () => void;
 }
 
 export class EventRouter {
@@ -124,6 +126,7 @@ export class EventRouter {
 
   private async onPullRequest(e: GithubEvent, key: string, service: Service): Promise<string> {
     if (!e.prNumber || !e.repo) return 'ignored (no PR number)';
+    if (['opened', 'closed', 'reopened'].includes(String(e.action))) this.d.onPrChange?.();
     if (e.action === 'ready_for_review') {
       const moved = await this.d.tickets.transitionForward?.(key, 'In Review').catch(() => false);
       await this.threadNote(key, e, `👀 ${this.prLink(e)} marked ready for review${moved ? ' · Jira → In Review' : ''}`);

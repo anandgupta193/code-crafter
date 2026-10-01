@@ -36,12 +36,12 @@ export async function computePrStats(services: Service[], author: string, count:
   return { author, repos, total, fetchedAt: new Date(now).toISOString() };
 }
 
-/** Wraps a loader with a time-based cache (one in-flight load at a time). */
-export function cached<T>(load: () => Promise<T>, ttlMs: number, now: () => number = Date.now): () => Promise<T> {
+/** Wraps a loader with a time-based cache (one in-flight load at a time); `.invalidate()` forces the next call to reload. */
+export function cached<T>(load: () => Promise<T>, ttlMs: number, now: () => number = Date.now): (() => Promise<T>) & { invalidate: () => void } {
   let value: T | undefined;
   let at = 0;
   let inflight: Promise<T> | undefined;
-  return async () => {
+  const get = async () => {
     if (value !== undefined && now() - at < ttlMs) return value;
     inflight ??= load()
       .then((v) => {
@@ -52,6 +52,11 @@ export function cached<T>(load: () => Promise<T>, ttlMs: number, now: () => numb
       .finally(() => (inflight = undefined));
     return inflight;
   };
+  return Object.assign(get, {
+    invalidate: () => {
+      value = undefined;
+    },
+  });
 }
 
 /** GitHub search with the bot token. */

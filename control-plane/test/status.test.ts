@@ -118,6 +118,9 @@ describe('PR stats', () => {
     t = 1500;
     await get();
     expect(loads).toBe(2);
+    get.invalidate(); // a PR merged → reload on the next call even inside the TTL
+    await get();
+    expect(loads).toBe(3);
   });
 });
 

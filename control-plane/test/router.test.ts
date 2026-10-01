@@ -105,6 +105,15 @@ describe('EventRouter', () => {
     expect(transitions).toEqual([]);
   });
 
+  it('refreshes PR stats when a code-crafter PR opens or closes', async () => {
+    let changes = 0;
+    (router as any).d.onPrChange = () => changes++;
+    await router.handle({ event: 'pull_request', action: 'closed', repo, prNumber: 6, branch, merged: true });
+    await router.handle({ event: 'pull_request', action: 'opened', repo, prNumber: 9, branch });
+    await router.handle({ event: 'pull_request', action: 'synchronize', repo, prNumber: 9, branch });
+    expect(changes).toBe(2);
+  });
+
   it('ready_for_review → Jira In Review', async () => {
     await router.handle({ event: 'pull_request', action: 'ready_for_review', repo, prNumber: 6, branch });
     expect(transitions).toEqual(['In Review']);

@@ -64,4 +64,4 @@ Events feed, Claude usage bars, expandable row details, Jira status, PR draft/CI
 | D30 | Logs: last 300 lines, refreshed every 3 s while the panel is open, filter + colours, redacted. No SSE |
 | D31 | Rows: tickets with a container or queued commands; problems first |
 | D32 | Read-only, localhost, no login, page refresh 5 s |
-| D33 | PR stats: by bot author, per registered repo + total, GitHub search cached 10 min |
+| D33 | PR stats: by bot author, per registered repo + total, GitHub search cached 10 min; **refreshed immediately (and again after 60 s) when a code-crafter PR opens, closes or merges** |
