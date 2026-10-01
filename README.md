@@ -61,6 +61,8 @@ GitHub PR #8         you:  "Search expenses" would be a better placeholder
 
 Real run on [expense-manager#8](https://github.com/anandgupta193/expense-manager/pull/8), about 4 minutes from Slack message to green draft PR. ⏱️
 
+🏆 **So far:** 4 PRs merged into expense-manager, all written by code-crafter.
+
 ---
 
 ## 🗺️ How it works
@@ -110,13 +112,14 @@ A new container clones the branch, reloads the conversation and **carries on whe
 - 🚀 **Slack → PR:** post `SCRUM-8`, or the Jira link, in the code-crafter channel and a draft PR shows up minutes later.
 - 🧪 **Trust, but verify:** the orchestrator re-runs your repo's own checks itself and gives the agent up to 2 fix rounds.
 - 💬 **Review loop:** inline comments go to the agent, which fixes them, replies in the thread, and pushes. Vague comment? It **asks you** instead of guessing. 🙋
+- 🧹 **Comment triage:** never redoes feedback it already handled (resolved threads, its own replies, recorded rounds), and works on CI failures and change requests first.
 - 🔴 **CI loop:** a failed CI run on the latest commit becomes a "fix the pipeline" task.
 - 😴 **Sleeps when idle:** containers exit after 40 idle minutes; the next comment wakes them up and they resume the same session.
 - 🛑 **Guardrails:** PRs stay **draft** until *you* say so, Jira only moves **forward**, the agent never touches CI files, and nothing merges without a human.
 - 🕹️ **Remote control:** comment `/codecrafter pause | resume | stop | approve` on the PR.
 - 🔌 **Tool-agnostic:** Claude Code sits behind an `AgentRunner` interface, so a Cursor adapter can be dropped in.
 - 🧯 **Never silent:** a crash posts ❌ with the reason to the Slack thread.
-- 📊 **Status page** at `localhost:3000/status`: service health, every ticket's state (crashed first), live-ish logs with secrets redacted, and how many PRs code-crafter has merged.
+- 📊 **Status page** at `localhost:3000/status`: service health, every ticket's state (crashed first), logs with secrets redacted, and how many PRs code-crafter has merged (updates within seconds of a merge).
 
 ---
 
@@ -138,6 +141,9 @@ scripts/n8n-import.sh           # load + publish the n8n workflows from git
 # 3️⃣  go
 #   post a feature idea in #ops         → 🎫 Jira ticket
 #   post the ticket key in #code-crafter → 🚀 draft PR
+
+# 4️⃣  watch
+open http://localhost:3000/status   # health · tickets · logs · PR stats
 ```
 
 🧰 Want to skip Slack while you tinker? `scripts/run-ticket.sh SCRUM-8` starts a ticket container by hand and follows its logs.
@@ -182,7 +188,7 @@ code-crafter/
 │   ├── scripts/entrypoint.sh  clone → branch → harness → orchestrator
 │   ├── rules/code-crafter.md  the agent's house rules
 │   └── orchestrator/          prompt · supervision · guardrails · checks · command queue
-├── 🧭 control-plane/          Slack bridge · spawner · GitHub event router · reaper
+├── 🧭 control-plane/          Slack bridge · spawner · GitHub event router · reaper · status page
 ├── 🧩 n8n/                    tested parsers → generated workflows
 ├── ⚙️ config/services.yaml    which repos it may touch
 ├── 💬 slack/manifest.yaml     one-paste Slack app
@@ -190,7 +196,7 @@ code-crafter/
 └── 📚 docs/                   the full architecture, piece by piece
 ```
 
-🧪 Tests: 26 agent · 27 control plane · 15 parser. Run `npm test` in each package, and `node --test n8n/parsers/*.test.js`.
+🧪 Tests: 32 agent · 37 control plane · 15 parser. Run `npm test` in each package, and `node --test n8n/parsers/*.test.js`.
 
 ---
 
@@ -210,8 +216,10 @@ code-crafter/
 | 📦 | **1a** Agent in a container → draft PR | ✅ |
 | 🔌 | **0/1b** Slack → n8n → control plane → spawn | ✅ |
 | 💬 | **1c** Review comments, CI failures, merge → Done | ✅ verified live (CI-failure path pending) |
+| 🧹 | **Comment triage**: skip handled feedback, most important first | ✅ |
+| 📊 | **Status page**: health, tickets, logs, PR stats | ✅ |
 | 🎫 | **#ops → Jira** ticket creation | ✅ |
-| 🧯 | **1d** Catch-up poll, auto-resume, webhook signatures, gitleaks | 🚧 next |
+| 🧯 | **1d** Catch-up poll, auto-resume, webhook signatures, gitleaks, Slack alerts | 🚧 next |
 | 🕸️ | **2** Architecture knowledge graph (Neo4j) in the prompt | 🔮 |
 | 🔀 | **2b** Cursor adapter | 🔮 |
 | 🗺️ | **3** Multi-repo planner: one request → N PRs | 🔮 |
