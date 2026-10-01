@@ -63,6 +63,7 @@ code-crafter/
 | D26 | Phase 1c/1d plan ([16](16-plan-1c-1d.md)): Part A live tests first; catch-up poll every 10 min; add HMAC webhook verification | 2026-09-30 |
 | D27–D33 | Status page scope ([17](17-status-page.md)): see what broke and why; health bar, tickets, logs, PR stats | 2026-10-01 |
 | D23 | Default model **haiku** (pipeline testing). Jira label `model:sonnet` / `model:opus` overrides it. Pro token verified for sonnet-5-5 and opus-5-5 | 2026-09-30 |
+| D34–D40 | Phase 2 context graph ([10](10-context-graph.md)): Neo4j Community in compose; Ollama `nomic-embed-text` on the Mac; reviewed `context.yaml`; ingest on merge to main; briefing in the prompt **and** live read-only MCP; the agent builds the briefing and skips it if the graph is down; `services.yaml` stays the registry | 2026-10-01 |
 
 ## Phase 1a acceptance checklist (agreed 2026-09-30)
 1. `./scripts/run-ticket.sh SCRUM-2` builds the agent image (arm64) and starts `code-crafter-scrum-2`.
