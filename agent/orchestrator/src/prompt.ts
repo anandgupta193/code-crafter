@@ -16,6 +16,8 @@ export interface PromptInput {
   attachments: string[];
   commands: Record<string, string>;
   existingWork?: { log: string; prUrl?: string; prDigest?: string };
+  /** Rendered "## Architecture Context" body from the context graph (docs/10); omitted when unavailable. */
+  architectureContext?: string;
 }
 
 export function prTitle(issue: JiraIssue): string {
@@ -75,6 +77,8 @@ ${issue.description || '_(no description)_'}`,
     `## Jira Attachments
 ${p.attachments.length ? p.attachments.map((a) => `- ${a}`).join('\n') : '- none'}`,
   ];
+
+  if (p.architectureContext) sections.push(`## Architecture Context\n${p.architectureContext}`);
 
   if (p.branchIsNew || !p.existingWork) {
     sections.push(`## Fresh analysis
