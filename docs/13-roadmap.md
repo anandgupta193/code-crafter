@@ -1,5 +1,8 @@
 # 13 · Roadmap & open questions
 
+## Status (2026-10-01): v1 complete ✅
+Phases 0, 1a–1c, comment triage, status page, #ops → Jira and Phase 2 (context graph) are built and verified live (6 merged PRs on expense-manager). Remaining items (1d hardening, Cursor adapter, Kubernetes spawner/GKE, Phase 3 planner) are open; the production checklist is in the README ("Going to production").
+
 ## Phases
 | Phase | Goal | Deliverables | Done when |
 |---|---|---|---|

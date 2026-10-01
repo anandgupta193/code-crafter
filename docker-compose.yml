@@ -25,6 +25,7 @@ services:
       JIRA_BASE_URL: ${JIRA_BASE_URL}
       JIRA_EMAIL: ${JIRA_EMAIL}
       JIRA_API_TOKEN: ${JIRA_API_TOKEN}
+      JIRA_PROJECT_KEY: ${JIRA_PROJECT_KEY:-SCRUM}
       SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       N8N_DIAGNOSTICS_ENABLED: "false"
@@ -68,7 +69,7 @@ services:
       AGENT_NETWORK: codecrafter
       CONTROL_PLANE_URL: http://control-plane:3000 # forwarded to agent containers
       NEO4J_URL: bolt://neo4j:7687
-      OLLAMA_URL: http://host.docker.internal:11434 # Ollama runs natively on the Mac (D35)
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434} # Ollama on the host (D35)
     ports:
       - "127.0.0.1:3000:3000"
     volumes:

@@ -168,7 +168,7 @@ const msg = $('Slack ops message').item.json.body;
 const u = $('Who posted').item.json.user || {};
 const author = (u.profile && (u.profile.real_name || u.profile.display_name)) || u.real_name || u.name || msg.user;
 const permalink = $('Permalink').item.json.permalink;
-return { json: opsToJiraIssue(msg.text, { author, permalink, projectKey: 'SCRUM', issueType: 'Story' }) };`,
+return { json: opsToJiraIssue(msg.text, { author, permalink, projectKey: $env.JIRA_PROJECT_KEY || 'SCRUM', issueType: 'Story' }) };`,
         [660, 0],
       ),
       jiraCreate('Create Jira issue', 'cc-ops-create', [880, 0]),
