@@ -6,6 +6,7 @@
 //   comment / review       → handle_comment command   (allow-listed humans only, D17)
 //   /codecrafter <verb>    → pause | resume | stop | approve
 //   CI failed on HEAD      → fix_pipeline command
+//   any PR merged to the base branch → onMergedToBase (context graph re-ingest, D37)
 // Commands go to the live container; if it isn't running they are queued and the container is respawned.
 
 import type { Chat, Tickets } from './clients.ts';
@@ -79,6 +80,8 @@ export interface RouterDeps {
   deliver: Deliver;
   /** Called when a code-crafter PR opens, closes, merges or reopens (e.g. to refresh PR stats). */
   onPrChange?: () => void;
+  /** Called for every merge into the service's base branch, code-crafter branch or not (D37). */
+  onMergedToBase?: (service: Service, prNumber: number) => void;
 }
 
 export class EventRouter {
@@ -101,6 +104,16 @@ export class EventRouter {
     if (!e.repo) return 'ignored (no repo)';
     const service = this.d.services.find((s) => s.repo.replace(/\.git$/, '').endsWith(`/${e.repo}`));
     if (!service) return `ignored (repo ${e.repo} not registered)`;
+
+    let reindex = '';
+    if (e.event === 'pull_request' && e.action === 'closed' && e.merged && e.prNumber && this.d.onMergedToBase) {
+      const pr = await github.getPr(e.repo, e.prNumber); // verify, don't trust the payload
+      if (pr.merged && pr.baseRef === service.defaultBaseBranch) {
+        this.d.onMergedToBase(service, pr.number);
+        reindex = ' · context graph re-ingest queued';
+      }
+    }
+    if (!e.branch?.startsWith(PREFIX) && !e.needsBranchLookup) return `ignored (not a code-crafter branch)${reindex}`;
 
     // issue_comment carries no branch — look the PR up.
     if (!e.branch && e.needsBranchLookup && e.prNumber) {

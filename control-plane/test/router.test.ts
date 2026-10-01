@@ -11,7 +11,7 @@ const repo = 'anandgupta193/expense-manager';
 const branch = 'CODE-CRAFTER-SCRUM-2';
 
 class FakeGitHub implements GitHubReader {
-  pr: PrInfo = { number: 6, state: 'closed', merged: true, draft: false, headRef: branch, headSha: 'sha2', body: '<!-- SLACK_THREAD_TS: 111.222 -->', url: 'u' };
+  pr: PrInfo = { number: 6, state: 'closed', merged: true, draft: false, headRef: branch, headSha: 'sha2', baseRef: 'main', body: '<!-- SLACK_THREAD_TS: 111.222 -->', url: 'u' };
   authors = new Map<number, string>([[11, 'anandgupta193']]);
   head = 'sha2';
   async getPr() {
@@ -160,6 +160,19 @@ describe('EventRouter', () => {
     expect(await router.handle(run('sha1'))).toContain('superseded');
     expect(await router.handle(run('sha2'))).toBe('fix_pipeline → code-crafter-scrum-2');
     expect(await router.handle({ ...run('sha2'), run: { id: 9, conclusion: 'success' } })).toContain('ignored');
+  });
+
+  it('any PR merged into main queues a context graph re-ingest (verified, not trusted)', async () => {
+    const reindexed: string[] = [];
+    (router as any).d.onMergedToBase = (s: { name: string }, n: number) => reindexed.push(`${s.name}#${n}`);
+    gh.pr = { ...gh.pr, number: 12, headRef: 'chore/context-yaml' };
+    const r = await router.handle({ event: 'pull_request', action: 'closed', repo, prNumber: 12, branch: 'chore/context-yaml', merged: true });
+    expect(r).toBe('ignored (not a code-crafter branch) · context graph re-ingest queued');
+    gh.pr = { ...gh.pr, baseRef: 'feature/x' };
+    await router.handle({ event: 'pull_request', action: 'closed', repo, prNumber: 13, branch: 'chore/y', merged: true });
+    gh.pr = { ...gh.pr, baseRef: 'main', merged: false };
+    await router.handle({ event: 'pull_request', action: 'closed', repo, prNumber: 14, branch: 'chore/z', merged: true });
+    expect(reindexed).toEqual(['expense-manager#12']);
   });
 
   it('ignores branches and repos that are not ours', async () => {

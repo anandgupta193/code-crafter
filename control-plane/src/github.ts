@@ -7,6 +7,7 @@ export interface PrInfo {
   draft: boolean;
   headRef: string;
   headSha: string;
+  baseRef: string;
   body: string;
   url: string;
 }
@@ -44,6 +45,7 @@ export class GitHubRest implements GitHubReader {
       draft: Boolean(p.draft),
       headRef: p.head?.ref,
       headSha: p.head?.sha,
+      baseRef: p.base?.ref,
       body: p.body ?? '',
       url: p.html_url,
     };
@@ -52,6 +54,17 @@ export class GitHubRest implements GitHubReader {
   async commentAuthor(repo: string, kind: 'review_comment' | 'issue_comment', id: number) {
     const path = kind === 'review_comment' ? `/repos/${repo}/pulls/comments/${id}` : `/repos/${repo}/issues/comments/${id}`;
     return (await this.get(path))?.user?.login as string | undefined;
+  }
+
+  /** Raw file contents at `ref`, or undefined if the file doesn't exist (context graph ingestion). */
+  async read(repo: string, path: string, ref: string): Promise<string | undefined> {
+    const url = `https://api.github.com/repos/${repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(ref)}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/vnd.github.raw+json', 'X-GitHub-Api-Version': '2022-11-28' },
+    });
+    if (res.status === 404) return undefined;
+    if (!res.ok) throw new Error(`GitHub contents ${repo}/${path}@${ref} → ${res.status}`);
+    return res.text();
   }
 
   async branchHead(repo: string, branch: string) {

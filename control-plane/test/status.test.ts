@@ -66,6 +66,13 @@ describe('health bar', () => {
     expect(h[0].detail).toBe('connected 5 min ago');
   });
 
+  it('adds a Graph pill when the context graph is configured', async () => {
+    const d = deps({ graph: async () => ({ ok: true, detail: 'last ingest 3 min ago' }) });
+    expect((await gatherHealth(d)).map((x) => x.name)).toEqual(['Slack bridge', 'n8n', 'smee', 'Redis', 'Graph']);
+    const down = deps({ graph: async () => Promise.reject(new Error('ECONNREFUSED')) });
+    expect((await gatherHealth(down)).at(-1)).toEqual({ name: 'Graph', ok: false, detail: 'Neo4j not answering' });
+  });
+
   it('flags smee errors, a stopped smee and a dead n8n', async () => {
     expect(smeeConnected("Connected x\nEvent { type: 'error', message: 'getaddrinfo EAI_AGAIN smee.io' }").ok).toBe(false);
     const d = deps({ n8nHealthy: async () => false });

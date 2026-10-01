@@ -24,6 +24,8 @@ export interface Config {
   controlPlaneUrl: string;
   /** Env var names forwarded into each agent container (D17: full env for now, but only what the agent uses). */
   agentEnvNames: string[];
+  /** Context graph (docs/10); disabled when NEO4J_PASSWORD is unset. */
+  graph?: { neo4jUrl: string; password: string; ollamaUrl: string };
 }
 
 function required(name: string): string {
@@ -43,6 +45,13 @@ export function parseServices(text: string): Service[] {
 
 export function loadConfig(): Config {
   return {
+    graph: process.env.NEO4J_PASSWORD
+      ? {
+          neo4jUrl: process.env.NEO4J_URL ?? 'bolt://neo4j:7687',
+          password: process.env.NEO4J_PASSWORD,
+          ollamaUrl: process.env.OLLAMA_URL ?? 'http://host.docker.internal:11434',
+        }
+      : undefined,
     port: Number(process.env.PORT ?? 3000),
     internalToken: required('INTERNAL_API_TOKEN'),
     redisUrl: process.env.REDIS_URL ?? 'redis://redis:6379',

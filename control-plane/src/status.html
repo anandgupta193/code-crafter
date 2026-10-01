@@ -79,7 +79,7 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const LABEL = { crashed: '❌ crashed', queued: '💬 queued', working: '⚡ working', idle: '😴 idle', exited: '✅ exited' };
-const SERVICE_CONTAINER = { 'Slack bridge': 'code-crafter-control-plane-1', n8n: 'code-crafter-n8n-1', smee: 'code-crafter-smee-1', Redis: 'code-crafter-redis-1' };
+const SERVICE_CONTAINER = { 'Slack bridge': 'code-crafter-control-plane-1', n8n: 'code-crafter-n8n-1', smee: 'code-crafter-smee-1', Redis: 'code-crafter-redis-1', Graph: 'code-crafter-neo4j-1' };
 const fmtAge = (ms) => {
   if (ms == null) return '';
   const m = Math.round(ms / 60000);

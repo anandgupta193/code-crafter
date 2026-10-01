@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { JiraTickets, SlackWeb } from './clients.ts';
 import { loadConfig } from './config.ts';
+import { Neo4jGraph, OllamaEmbedder } from './context/graph-store.ts';
+import { Ingestor } from './context/ingest.ts';
 import { DockerEngine } from './docker.ts';
 import { GitHubRest } from './github.ts';
 import { Intake, type ParsedTrigger } from './intake.ts';
@@ -23,11 +25,21 @@ const chat = new SlackWeb(cfg.slack.botToken);
 const spawner = new Spawner(cfg, docker, store);
 const tickets = new JiraTickets(cfg.jira);
 const intake = new Intake(spawner, chat, tickets, cfg.slack.allowedUsers, store);
+const github = new GitHubRest(cfg.githubToken);
+
+// ── context graph (docs/10-context-graph.md) ──
+const graph = cfg.graph ? new Neo4jGraph(cfg.graph.neo4jUrl, cfg.graph.password) : undefined;
+const ingestor =
+  graph && cfg.graph
+    ? new Ingestor({ services: cfg.services, files: github, graph, embedder: new OllamaEmbedder(cfg.graph.ollamaUrl), store, chat, opsChannel: cfg.slack.opsChannel })
+    : undefined;
+await graph?.ensureSchema().catch((e) => log.warn(`context graph: schema setup failed (${e}); will retry on first ingest`));
+
 const router = new EventRouter({
   services: cfg.services,
   allowedUsers: cfg.githubAllowedUsers,
   slackChannel: cfg.slack.channel,
-  github: new GitHubRest(cfg.githubToken),
+  github,
   tickets,
   chat,
   store,
@@ -39,6 +51,7 @@ const router = new EventRouter({
     prStats.invalidate();
     setTimeout(() => prStats.invalidate(), 60_000).unref();
   },
+  onMergedToBase: (service, prNumber) => void ingestor?.ingest(service.name, `merge #${prNumber}`),
 });
 
 const bridge = cfg.slack.appToken
@@ -67,6 +80,13 @@ const prStats = cached(async () => {
   botLogin ??= await githubLogin(cfg.githubToken);
   return computePrStats(cfg.services, botLogin, searchCount);
 }, 10 * 60_000);
+const graphHealth = async () => {
+  if (!graph) return { ok: false, detail: 'disabled' };
+  if (!(await graph.ping())) return { ok: false, detail: 'Neo4j not answering' };
+  const ats = await Promise.all(cfg.services.map((s) => graph.lastIngest(s.name).catch(() => undefined)));
+  const last = ats.filter(Boolean).sort().at(-1);
+  return { ok: true, detail: last ? `last ingest ${new Date(last).toLocaleString('en-GB')}` : 'up · nothing ingested yet' };
+};
 const statusDeps = () => ({
   docker,
   store,
@@ -74,6 +94,7 @@ const statusDeps = () => ({
   jiraBaseUrl: cfg.jira.baseUrl,
   slack: { channel: cfg.slack.channel, workspaceUrl },
   bridge,
+  graph: graph ? graphHealth : undefined,
   n8nHealthy: async () => (await fetch(cfg.n8nWebhookBase.replace(/\/webhook\/?$/, '') + '/healthz', { signal: AbortSignal.timeout(2000) })).ok,
   agentPhase: async (container: string) => {
     const res = await fetch(`http://${container}:8080/state`, { signal: AbortSignal.timeout(1500) });
@@ -141,6 +162,12 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/tickets') {
       return send(res, 200, await docker.listTicketContainers());
+    }
+    const reindexMatch = url.pathname.match(/^\/api\/context\/reindex\/([a-z0-9._-]+)$/i);
+    if (req.method === 'POST' && reindexMatch) {
+      if (!ingestor) return send(res, 503, { error: 'context graph disabled (NEO4J_PASSWORD unset)' });
+      await graph?.ensureSchema();
+      return send(res, 200, { result: await ingestor.ingest(reindexMatch[1], 'manual reindex') });
     }
     const stopMatch = url.pathname.match(/^\/tickets\/([A-Z][A-Z0-9_]+-\d+)$/);
     if (req.method === 'DELETE' && stopMatch) {

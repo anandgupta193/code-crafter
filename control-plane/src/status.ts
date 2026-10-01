@@ -1,5 +1,5 @@
 // Status page data (docs/17-status-page.md): one job — show what broke and why.
-//   health bar (Slack bridge · n8n · smee · Redis) · tickets table · logs · PR stats
+//   health bar (Slack bridge · n8n · smee · Redis · Graph) · tickets table · logs · PR stats
 
 import { containerName, type Service } from './config.ts';
 import type { DockerApi, TicketContainer } from './docker.ts';
@@ -8,7 +8,7 @@ import type { PrStats } from './pr-stats.ts';
 import { keys, type Store } from './store.ts';
 
 export interface Health {
-  name: 'Slack bridge' | 'n8n' | 'smee' | 'Redis';
+  name: 'Slack bridge' | 'n8n' | 'smee' | 'Redis' | 'Graph';
   ok: boolean;
   detail: string;
 }
@@ -38,6 +38,8 @@ export interface StatusDeps {
   /** Running agent's own phase: 'working' | 'idle' | … (GET :8080/state). */
   agentPhase: (container: string) => Promise<string | undefined>;
   prStats?: () => Promise<PrStats>;
+  /** Context graph health (Neo4j answers + last ingest), when configured (docs/10). */
+  graph?: () => Promise<{ ok: boolean; detail: string }>;
   now?: () => number;
 }
 
@@ -97,6 +99,7 @@ export async function gatherHealth(d: StatusDeps): Promise<Health[]> {
     { name: 'n8n', ok: n8nOk, detail: n8nOk ? 'healthy' : 'not answering /healthz' },
     smee,
     { name: 'Redis', ok: redisOk, detail: redisOk ? 'PONG' : 'not answering PING' },
+    ...(d.graph ? [{ name: 'Graph' as const, ...(await d.graph().catch(() => ({ ok: false, detail: 'Neo4j not answering' }))) }] : []),
   ];
 }
 
