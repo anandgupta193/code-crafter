@@ -50,6 +50,8 @@ export class SlackBridge {
   private stopped = false;
   private backoffMs = 1000;
   connected = false;
+  /** When `connected` last flipped (epoch ms) — for "disconnected for N min" on the status page. */
+  changedAt = Date.now();
 
   constructor(opts: BridgeOptions) {
     this.opts = opts;
@@ -77,11 +79,13 @@ export class SlackBridge {
       this.ws = ws;
       ws.onopen = () => {
         this.connected = true;
+        this.changedAt = Date.now();
         this.backoffMs = 1000;
         log.ok('slack bridge connected (Socket Mode)');
       };
       ws.onmessage = (m) => void this.onMessage(String(m.data));
       ws.onclose = () => {
+        if (this.connected) this.changedAt = Date.now();
         this.connected = false;
         if (!this.stopped) this.reconnect('socket closed');
       };

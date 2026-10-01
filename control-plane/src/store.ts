@@ -12,6 +12,11 @@ export interface Store {
   push(key: string, value: string): Promise<void>;
   /** Read and clear a list atomically. */
   drain(key: string): Promise<string[]>;
+  /** Length of a list (0 if missing). */
+  llen(key: string): Promise<number>;
+  /** Keys matching a glob pattern (SCAN, never KEYS). */
+  scan(pattern: string): Promise<string[]>;
+  ping(): Promise<boolean>;
 }
 
 export const keys = {
@@ -22,6 +27,7 @@ export const keys = {
   delivery: (id: string) => `codecrafter:delivery:${id}`,
   commands: (k: string) => `codecrafter:commands:${k}`,
   crashReported: (name: string, startedAt: number) => `codecrafter:crash:${name}:${startedAt}`,
+  title: (k: string) => `codecrafter:title:${k}`,
 };
 
 export async function connectRedis(url: string): Promise<Store> {
@@ -47,6 +53,21 @@ export async function connectRedis(url: string): Promise<Store> {
     async push(key, value) {
       await client.rPush(key, value);
       await client.expire(key, 7 * 24 * 3600);
+    },
+    async llen(key) {
+      return client.lLen(key);
+    },
+    async scan(pattern) {
+      const found: string[] = [];
+      for await (const batch of client.scanIterator({ MATCH: pattern, COUNT: 200 })) found.push(...(Array.isArray(batch) ? batch : [batch]));
+      return found;
+    },
+    async ping() {
+      try {
+        return (await client.ping()) === 'PONG';
+      } catch {
+        return false;
+      }
     },
     async drain(key) {
       const [items] = (await client.multi().lRange(key, 0, -1).del(key).exec()) as unknown as [string[], number];
@@ -79,6 +100,16 @@ export class MemoryStore implements Store {
   lists = new Map<string, string[]>();
   async push(key: string, value: string) {
     this.lists.set(key, [...(this.lists.get(key) ?? []), value]);
+  }
+  async llen(key: string) {
+    return this.lists.get(key)?.length ?? 0;
+  }
+  async scan(pattern: string) {
+    const re = new RegExp('^' + pattern.split('*').map((p) => p.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$');
+    return [...this.data.keys(), ...this.lists.keys()].filter((k) => re.test(k));
+  }
+  async ping() {
+    return true;
   }
   async drain(key: string) {
     const items = this.lists.get(key) ?? [];

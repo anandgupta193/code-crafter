@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Code-Crafter status</title>
+<style>
+  :root { --bg:#0A0A13; --panel:#14142A; --panel2:#1B1B36; --border:#2B2B4A; --text:#F4F4FA; --muted:#9C9CB8;
+          --purple:#8B5CF6; --orange:#FB923C; --green:#22C55E; --red:#F43F5E; --amber:#F59E0B; --blue:#3B82F6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background: radial-gradient(900px 500px at 10% 0%, #8B5CF622, transparent 70%), radial-gradient(800px 500px at 100% 100%, #FB923C18, transparent 70%), var(--bg);
+         color:var(--text); font: 15px/1.45 -apple-system, "SF Pro Text", "Segoe UI", Inter, sans-serif; min-height:100vh; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
+  header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px; margin-bottom:22px; }
+  h1 { margin:0; font-size:24px; display:flex; align-items:center; gap:10px; }
+  .logo { width:38px; height:38px; border-radius:11px; display:grid; place-items:center; background:linear-gradient(135deg,var(--purple),var(--orange)); }
+  .pills { display:flex; flex-wrap:wrap; gap:8px; }
+  .pill { padding:6px 12px; border-radius:999px; border:1px solid var(--border); background:var(--panel); cursor:pointer; font-weight:600; font-size:14px; }
+  .pill .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; }
+  .ok .dot { background:var(--green); box-shadow:0 0 8px var(--green); } .bad .dot { background:var(--red); box-shadow:0 0 8px var(--red); }
+  .bad { border-color:#F43F5E88; }
+  section { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:18px; margin-bottom:18px; }
+  h2 { margin:0 0 12px; font-size:17px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:10px 8px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  th { color:var(--muted); font-weight:600; font-size:13px; text-transform:uppercase; letter-spacing:.04em; }
+  tr:last-child td { border-bottom:none; }
+  .key { font-weight:700; color:#93C5FD; text-decoration:none; }
+  .title { color:var(--muted); font-size:13px; display:block; max-width:380px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .state { font-weight:700; white-space:nowrap; }
+  .crashed { color:var(--red); } .queued { color:var(--amber); } .working { color:var(--orange); } .idle { color:var(--blue); } .exited { color:var(--green); }
+  a.link, button.link { color:var(--text); text-decoration:none; background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:4px 9px; margin-right:6px; font-size:13px; cursor:pointer; font-family:inherit; }
+  a.link:hover, button.link:hover { border-color:var(--purple); }
+  .muted { color:var(--muted); }
+  .empty { color:var(--muted); padding:14px 4px; }
+  .stats td.num a { color:inherit; text-decoration:none; font-weight:700; font-size:18px; }
+  .stats .m { color:var(--green); } .stats .o { color:var(--amber); } .stats .c { color:var(--red); }
+  #logs { display:none; }
+  #logs.open { display:block; }
+  .logbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
+  .logbar input { flex:1; min-width:180px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:7px 10px; font:inherit; }
+  pre { margin:0; max-height:60vh; overflow:auto; background:#0B0C18; border:1px solid var(--border); border-radius:10px; padding:12px; font: 12.5px/1.5 "SF Mono", Menlo, Consolas, monospace; white-space:pre-wrap; word-break:break-word; }
+  .l-ok { color:#86EFAC; } .l-err { color:#FDA4AF; } .l-warn { color:#FCD34D; } .l-agent { color:#C4B5FD; } .l-tool { color:#93C5FD; }
+  footer { color:var(--muted); font-size:13px; text-align:center; }
+  @media (max-width: 720px) { .hide-sm { display:none; } th, td { padding:8px 4px; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1><span class="logo">🛠️</span> Code-Crafter status</h1>
+    <div class="pills" id="health"></div>
+  </header>
+
+  <section>
+    <h2>🎫 Tickets</h2>
+    <div id="tickets"></div>
+  </section>
+
+  <section id="logs">
+    <div class="logbar">
+      <h2 style="margin:0">📜 <span id="logname"></span></h2>
+      <input id="filter" placeholder="Filter lines…" />
+      <span class="muted" id="logmeta"></span>
+      <button class="link" id="closelogs">✕ Close</button>
+    </div>
+    <pre id="logtext"></pre>
+  </section>
+
+  <section>
+    <h2>📈 Pull requests by code-crafter</h2>
+    <div id="stats"></div>
+  </section>
+
+  <footer id="updated">loading…</footer>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const LABEL = { crashed: '❌ crashed', queued: '💬 queued', working: '⚡ working', idle: '😴 idle', exited: '✅ exited' };
+const SERVICE_CONTAINER = { 'Slack bridge': 'code-crafter-control-plane-1', n8n: 'code-crafter-n8n-1', smee: 'code-crafter-smee-1', Redis: 'code-crafter-redis-1' };
+const fmtAge = (ms) => {
+  if (ms == null) return '';
+  const m = Math.round(ms / 60000);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} m`;
+};
+
+let openLog = null;
+let logTimer = null;
+
+function renderHealth(health) {
+  $('health').innerHTML = health
+    .map((h) => `<span class="pill ${h.ok ? 'ok' : 'bad'}" title="${esc(h.detail)}" data-log="${esc(SERVICE_CONTAINER[h.name] || '')}"><span class="dot"></span>${esc(h.name)}</span>`)
+    .join('');
+}
+
+function renderTickets(t) {
+  if (t && t.error) return ($('tickets').innerHTML = `<div class="empty">⚠️ ${esc(t.error)}</div>`);
+  if (!t.length) return ($('tickets').innerHTML = '<div class="empty">No ticket containers right now. Post a ticket key in Slack to start one.</div>');
+  $('tickets').innerHTML = `<table>
+    <tr><th>Ticket</th><th>State</th><th class="hide-sm">Queue</th><th>Links</th></tr>
+    ${t.map((r) => `<tr>
+      <td><a class="key" href="${esc(r.links.jira)}" target="_blank">${esc(r.key)}</a><span class="title">${esc(r.title || '—')}</span></td>
+      <td><span class="state ${r.state}">${LABEL[r.state]}${r.exitCode ? ` (exit ${r.exitCode})` : ''}</span><br><span class="muted">${r.ageMs != null ? 'started ' + fmtAge(r.ageMs) + ' ago' : 'no container'}</span></td>
+      <td class="hide-sm">${r.queued ? `💬 ${r.queued}` : '<span class="muted">—</span>'}</td>
+      <td>${r.links.logs ? `<button class="link" data-log="${esc(r.links.logs)}">📜 Logs</button>` : ''}${r.links.slack ? `<a class="link" href="${esc(r.links.slack)}" target="_blank">🧵 Slack</a>` : ''}<a class="link" href="${esc(r.links.pr)}" target="_blank">🔗 PR</a></td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+function renderStats(s) {
+  if (!s) return ($('stats').innerHTML = '<div class="empty">Not configured.</div>');
+  if (s.error) return ($('stats').innerHTML = `<div class="empty">⚠️ ${esc(s.error)}</div>`);
+  const row = (name, r) => `<tr><td>${esc(name)}</td>
+    <td class="num m">${r.links ? `<a href="${esc(r.links.merged)}" target="_blank">${r.merged}</a>` : r.merged}</td>
+    <td class="num o">${r.links ? `<a href="${esc(r.links.open)}" target="_blank">${r.open}</a>` : r.open}</td>
+    <td class="num c">${r.links ? `<a href="${esc(r.links.closed)}" target="_blank">${r.closed}</a>` : r.closed}</td></tr>`;
+  $('stats').innerHTML = `<table class="stats">
+    <tr><th>Repo</th><th>✅ Merged</th><th>🟡 Open</th><th>❌ Closed</th></tr>
+    ${s.repos.map((r) => row(r.repo, r)).join('')}
+    ${s.repos.length > 1 ? row('Total', s.total) : ''}
+  </table><div class="muted" style="margin-top:8px">PRs authored by <b>${esc(s.author)}</b> · updated ${new Date(s.fetchedAt).toLocaleTimeString()}</div>`;
+}
+
+async function refresh() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    renderHealth(s.health);
+    renderTickets(s.tickets);
+    renderStats(s.prStats);
+    $('updated').textContent = `Updated ${new Date(s.generatedAt).toLocaleTimeString()} · refreshes every 5 s`;
+  } catch (e) {
+    $('updated').textContent = `⚠️ Could not reach the control plane (${e.message})`;
+  }
+}
+
+function colour(line) {
+  const cls = /✗|error|Error|ERR|crash/.test(line) ? 'l-err' : /\] ! |warn/i.test(line) ? 'l-warn' : /✓|passed|Connected/.test(line) ? 'l-ok' : /💬/.test(line) ? 'l-agent' : /🔧/.test(line) ? 'l-tool' : '';
+  return cls ? `<span class="${cls}">${esc(line)}</span>` : esc(line);
+}
+
+async function loadLogs() {
+  if (!openLog) return;
+  try {
+    const res = await fetch(`/api/logs/${encodeURIComponent(openLog)}`);
+    const text = res.ok ? await res.text() : `⚠️ ${await res.text()}`;
+    const f = $('filter').value.toLowerCase();
+    const lines = text.split('\n').filter((l) => !f || l.toLowerCase().includes(f));
+    const pre = $('logtext');
+    const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
+    pre.innerHTML = lines.map(colour).join('\n');
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+    $('logmeta').textContent = `last 300 lines · ${lines.length} shown · refreshes every 3 s`;
+  } catch (e) {
+    $('logtext').textContent = `⚠️ ${e.message}`;
+  }
+}
+
+function showLogs(name) {
+  if (!name) return;
+  openLog = name;
+  $('logname').textContent = name;
+  $('logs').classList.add('open');
+  $('logtext').textContent = 'loading…';
+  clearInterval(logTimer);
+  loadLogs().then(() => ($('logtext').scrollTop = $('logtext').scrollHeight));
+  logTimer = setInterval(loadLogs, 3000);
+  $('logs').scrollIntoView({ behavior: 'smooth' });
+}
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-log]');
+  if (el) showLogs(el.dataset.log);
+});
+$('closelogs').onclick = () => {
+  openLog = null;
+  clearInterval(logTimer);
+  $('logs').classList.remove('open');
+};
+$('filter').oninput = loadLogs;
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

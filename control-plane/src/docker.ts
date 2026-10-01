@@ -7,6 +7,29 @@ export interface TicketContainer {
   state: string; // running | exited | created | ...
   startedAt: number; // epoch ms, from the codecrafter.started label
   exitCode?: number; // parsed from Status "Exited (1) 3 minutes ago"
+  service?: string; // codecrafter.service label (set by the spawner)
+}
+
+export interface ServiceContainer {
+  name: string;
+  state: string;
+}
+
+/**
+ * Docker's non-TTY log stream is multiplexed: 8-byte header [stream, 0, 0, 0, size(uint32 BE)] + payload.
+ * Returns plain text; passes TTY (raw) output through unchanged.
+ */
+export function demuxLogs(buf: Buffer): string {
+  const multiplexed = buf.length >= 8 && buf[0] <= 2 && buf[1] === 0 && buf[2] === 0 && buf[3] === 0;
+  if (!multiplexed) return buf.toString('utf8');
+  const parts: Buffer[] = [];
+  let i = 0;
+  while (i + 8 <= buf.length) {
+    const size = buf.readUInt32BE(i + 4);
+    parts.push(buf.subarray(i + 8, i + 8 + size));
+    i += 8 + size;
+  }
+  return Buffer.concat(parts).toString('utf8');
 }
 
 export interface ContainerSpec {
@@ -29,6 +52,10 @@ export interface DockerApi {
   remove(name: string): Promise<void>;
   listVolumes(prefix: string): Promise<string[]>;
   removeVolume(name: string): Promise<void>;
+  /** A docker-compose service container of this project (e.g. smee), if any. */
+  composeService(service: string): Promise<ServiceContainer | undefined>;
+  /** Last `tail` lines of a container's stdout+stderr as text. */
+  logs(name: string, tail: number): Promise<string>;
 }
 
 export class DockerEngine implements DockerApi {
@@ -84,6 +111,7 @@ export class DockerEngine implements DockerApi {
       key: c.Labels?.['codecrafter.key'] ?? '',
       state: c.State,
       startedAt: Number(c.Labels?.['codecrafter.started'] ?? 0) * 1000,
+      service: c.Labels?.['codecrafter.service'],
       exitCode: /Exited \((\d+)\)/.test(c.Status ?? '') ? Number(/Exited \((\d+)\)/.exec(c.Status)![1]) : undefined,
     }));
   }
@@ -119,6 +147,33 @@ export class DockerEngine implements DockerApi {
   async listVolumes(prefix: string): Promise<string[]> {
     const data = await this.ok('GET', `/volumes?filters=${encodeURIComponent(JSON.stringify({ name: [prefix] }))}`);
     return (data?.Volumes ?? []).map((v: any) => v.Name).filter((n: string) => n.startsWith(prefix));
+  }
+
+  async composeService(service: string): Promise<ServiceContainer | undefined> {
+    const project = process.env.COMPOSE_PROJECT ?? 'code-crafter';
+    const filters = encodeURIComponent(JSON.stringify({ label: [`com.docker.compose.project=${project}`, `com.docker.compose.service=${service}`] }));
+    const list = (await this.ok('GET', `/containers/json?all=true&filters=${filters}`)) as any[];
+    const c = list[0];
+    return c ? { name: String(c.Names?.[0] ?? '').replace(/^\//, ''), state: c.State } : undefined;
+  }
+
+  logs(name: string, tail: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const req = request(
+        { socketPath: this.socketPath, method: 'GET', path: `/containers/${encodeURIComponent(name)}/logs?stdout=1&stderr=1&tail=${tail}` },
+        (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (d: Buffer) => chunks.push(d));
+          res.on('end', () => {
+            const buf = Buffer.concat(chunks);
+            if ((res.statusCode ?? 500) >= 300) reject(new Error(`docker logs ${name} → ${res.statusCode}: ${buf.toString('utf8').slice(0, 200)}`));
+            else resolve(demuxLogs(buf));
+          });
+        },
+      );
+      req.on('error', reject);
+      req.end();
+    });
   }
 
   async removeVolume(name: string): Promise<void> {

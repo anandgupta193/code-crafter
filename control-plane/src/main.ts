@@ -1,5 +1,6 @@
 // Control plane: HTTP API + Slack bridge + reaper (docs/04-spawner.md, 02-trigger-intake.md).
 
+import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { JiraTickets, SlackWeb } from './clients.ts';
 import { loadConfig } from './config.ts';
@@ -7,7 +8,9 @@ import { DockerEngine } from './docker.ts';
 import { GitHubRest } from './github.ts';
 import { Intake, type ParsedTrigger } from './intake.ts';
 import { log } from './log.ts';
+import { cached, computePrStats, githubLogin, githubSearchCount } from './pr-stats.ts';
 import { reapOnce } from './reaper.ts';
+import { gatherStatus, readLogs } from './status.ts';
 import { EventRouter, httpDeliver, type GithubEvent } from './router.ts';
 import { SlackBridge } from './slack-bridge.ts';
 import { Spawner, type SpawnRequest } from './spawner.ts';
@@ -19,7 +22,7 @@ const docker = new DockerEngine();
 const chat = new SlackWeb(cfg.slack.botToken);
 const spawner = new Spawner(cfg, docker, store);
 const tickets = new JiraTickets(cfg.jira);
-const intake = new Intake(spawner, chat, tickets, cfg.slack.allowedUsers);
+const intake = new Intake(spawner, chat, tickets, cfg.slack.allowedUsers, store);
 const router = new EventRouter({
   services: cfg.services,
   allowedUsers: cfg.githubAllowedUsers,
@@ -50,6 +53,30 @@ const bridge = cfg.slack.appToken
     })
   : undefined;
 
+// ── status page (docs/17-status-page.md) ──
+const STATUS_HTML = readFileSync(new URL('./status.html', import.meta.url), 'utf8');
+const workspaceUrl = await chat.workspaceUrl().catch(() => undefined);
+const searchCount = githubSearchCount(cfg.githubToken);
+let botLogin: string | undefined;
+const prStats = cached(async () => {
+  botLogin ??= await githubLogin(cfg.githubToken);
+  return computePrStats(cfg.services, botLogin, searchCount);
+}, 10 * 60_000);
+const statusDeps = () => ({
+  docker,
+  store,
+  services: cfg.services,
+  jiraBaseUrl: cfg.jira.baseUrl,
+  slack: { channel: cfg.slack.channel, workspaceUrl },
+  bridge,
+  n8nHealthy: async () => (await fetch(cfg.n8nWebhookBase.replace(/\/webhook\/?$/, '') + '/healthz', { signal: AbortSignal.timeout(2000) })).ok,
+  agentPhase: async (container: string) => {
+    const res = await fetch(`http://${container}:8080/state`, { signal: AbortSignal.timeout(1500) });
+    return ((await res.json()) as { phase?: string }).phase;
+  },
+  prStats,
+});
+
 async function readJson(req: IncomingMessage): Promise<any> {
   let raw = '';
   for await (const chunk of req) raw += chunk;
@@ -68,6 +95,23 @@ const server = createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && url.pathname === '/healthz') {
       return send(res, 200, { ok: true, slackBridge: bridge ? bridge.connected : 'disabled' });
+    }
+    // Read-only status page: no token (the control plane is only published on 127.0.0.1).
+    if (req.method === 'GET' && url.pathname === '/status') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(STATUS_HTML);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/status') return send(res, 200, await gatherStatus(statusDeps()));
+    const logMatch = url.pathname.match(/^\/api\/logs\/([^/]+)$/);
+    if (req.method === 'GET' && logMatch) {
+      try {
+        const text = await readLogs(docker, decodeURIComponent(logMatch[1]));
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        return res.end(text);
+      } catch (err) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        return res.end(String(err instanceof Error ? err.message : err));
+      }
     }
     if (!authorized(req)) return send(res, 401, { error: 'missing or wrong x-codecrafter-token' });
 

@@ -29,4 +29,13 @@ export class FakeDocker implements DockerApi {
   async removeVolume(name: string) {
     this.volumes = this.volumes.filter((v) => v !== name);
   }
+  services = new Map<string, string>([['smee', 'running']]);
+  logLines = new Map<string, string>();
+  async composeService(service: string) {
+    const state = this.services.get(service);
+    return state ? { name: `code-crafter-${service}-1`, state } : undefined;
+  }
+  async logs(name: string) {
+    return this.logLines.get(name) ?? '';
+  }
 }

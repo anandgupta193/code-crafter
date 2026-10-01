@@ -2,6 +2,7 @@
 import type { Chat, Tickets } from './clients.ts';
 import { log } from './log.ts';
 import type { SpawnResult, Spawner } from './spawner.ts';
+import { keys, type Store } from './store.ts';
 
 export interface ParsedTrigger {
   ok: boolean;
@@ -26,8 +27,10 @@ export class Intake {
   private chat: Chat;
   private tickets: Tickets;
   private allowedUsers: string[];
+  private store?: Store;
 
-  constructor(spawner: Spawner, chat: Chat, tickets: Tickets, allowedUsers: string[]) {
+  constructor(spawner: Spawner, chat: Chat, tickets: Tickets, allowedUsers: string[], store?: Store) {
+    this.store = store;
     this.spawner = spawner;
     this.chat = chat;
     this.tickets = tickets;
@@ -66,6 +69,9 @@ export class Intake {
     }
 
     const result = await this.spawner.spawn({ jiraKey: t.jiraKey, service: t.service, baseBranch: t.baseBranch, slackThreadTs: ts });
+    if (issue && (result.status === 'started' || result.status === 'already-running')) {
+      await this.store?.set(keys.title(t.jiraKey), issue.summary, 90 * 24 * 3600);
+    }
     await this.chat.react(channel, ts, REACTION[result.status]);
 
     const title = issue ? `<${issue.url}|${t.jiraKey}>: ${issue.summary}` : t.jiraKey;

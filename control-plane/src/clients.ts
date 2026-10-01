@@ -35,6 +35,11 @@ export class SlackWeb implements Chat {
     return data?.ts as string | undefined;
   }
 
+  /** Workspace base URL (e.g. https://code-crafter.slack.com/) for building message permalinks. */
+  async workspaceUrl(): Promise<string | undefined> {
+    return (await this.api('auth.test', {}))?.url;
+  }
+
   async react(channel: string, ts: string, emoji: string) {
     await this.api('reactions.add', { channel, timestamp: ts, name: emoji });
   }

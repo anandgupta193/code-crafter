@@ -116,6 +116,7 @@ A new container clones the branch, reloads the conversation and **carries on whe
 - 🕹️ **Remote control:** comment `/codecrafter pause | resume | stop | approve` on the PR.
 - 🔌 **Tool-agnostic:** Claude Code sits behind an `AgentRunner` interface, so a Cursor adapter can be dropped in.
 - 🧯 **Never silent:** a crash posts ❌ with the reason to the Slack thread.
+- 📊 **Status page** at `localhost:3000/status`: service health, every ticket's state (crashed first), live-ish logs with secrets redacted, and how many PRs code-crafter has merged.
 
 ---
 
@@ -239,6 +240,7 @@ code-crafter/
 | 🎯 | [14 · Target repo](docs/14-target-repo-expense-manager.md) | the first repo it works on |
 | 🤖 | [15 · Bot account](docs/15-bot-account-setup.md) | GitHub bot, token, branch protection |
 | 📋 | [16 · Plan 1c + 1d](docs/16-plan-1c-1d.md) | finishing the loop, hardening |
+| 📊 | [17 · Status page](docs/17-status-page.md) | what broke and why |
 
 ---
 

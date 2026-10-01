@@ -61,6 +61,7 @@ code-crafter/
 | D24 | Slack trigger: full format or shorthand `SCRUM-2`; service defaults when only one is registered; `Environment` ignored | 2026-09-30 |
 | D25 | Tickets come from Slack **#ops**: any message there becomes a Jira Story (title = first line) via an n8n workflow that replies in the thread with the link; humans refine the ticket, then trigger code-crafter | 2026-09-30 |
 | D26 | Phase 1c/1d plan ([16](16-plan-1c-1d.md)): Part A live tests first; catch-up poll every 10 min; add HMAC webhook verification | 2026-09-30 |
+| D27–D33 | Status page scope ([17](17-status-page.md)): see what broke and why; health bar, tickets, logs, PR stats | 2026-10-01 |
 | D23 | Default model **haiku** (pipeline testing). Jira label `model:sonnet` / `model:opus` overrides it. Pro token verified for sonnet-5-5 and opus-5-5 | 2026-09-30 |
 
 ## Phase 1a acceptance checklist (agreed 2026-09-30)
