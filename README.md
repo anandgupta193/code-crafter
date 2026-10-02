@@ -549,10 +549,6 @@ code-crafter/
 
 ---
 
-## 💡 Inspiration
-
-Based on the published architecture of QuillBot's internal **Code-Crafter** (disposable pod per ticket, n8n event bus, PR-event feedback loop, Neo4j context graph), rebuilt from scratch with GitHub, Slack Socket Mode, local Docker, Ollama and free tiers.
-
 <div align="center">
 
 ### 🧑‍💻 Built by [@anandgupta193](https://github.com/anandgupta193)
